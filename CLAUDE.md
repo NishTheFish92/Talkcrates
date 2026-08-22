@@ -15,7 +15,7 @@ A chat-interface web app for structured self-dialogue and introspection. Instead
 - Multiple named conversations/threads, sidebar-style (like ChatGPT/Claude) — not a single continuous log. Each thread is its own topic, decision, or venting session.
 
 **Platform**
-- Web application, responsive — must work well on both desktop and mobile. Native apps are out of scope.
+- Web application, responsive — must work well on both desktop and mobile. Native apps are out of scope for v1 (see Deferred: Capacitor mobile-app wrap).
 
 **Audience & accounts**
 - Built as a multi-user product from the start (architecture should assume multiple accounts eventually), but real auth/account system is **post-MVP**. For MVP, the password-protected zip file *is* the user's identity/data — see Data storage & privacy.
@@ -35,7 +35,9 @@ A chat-interface web app for structured self-dialogue and introspection. Instead
 
 - **Backend**: FastAPI (Python).
 - **Frontend**: React + Vite, TypeScript.
-- Decoupled SPA architecture — frontend talks to FastAPI over REST/WebSocket, no server-side templating.
+- Decoupled SPA architecture — frontend talks to FastAPI over REST/WebSocket, no server-side templating (not exercised in v1, see below).
+
+**Backend's job for v1 (decided, 2026-08-10):** no app-data REST endpoints — storage/export/import are all client-side. FastAPI just (1) serves the built frontend as static files with SPA fallback (`index.html` for unmatched routes), (2) exposes `/api/health` for container liveness checks, (3) reserves the `/api/*` prefix for future phases (auth, server-side storage). No CORS needed in v1 — no cross-origin calls.
 
 ## Storage & Data Format (decided, details TBD as we build)
 
@@ -82,6 +84,32 @@ CREATE INDEX idx_participants_thread ON participants(thread_id);
 - **Ordering**: no separate sequence column. SQLite's `INTEGER PRIMARY KEY` (the rowid) is monotonically increasing on insert, so `ORDER BY id` on `messages` gives correct chronological order for free.
 - **Timestamps** are `INTEGER` unix epoch seconds (not ISO8601 text) — smaller, sorts/compares as plain numbers, no string parsing needed.
 
+### Storage-layer interface (decided, 2026-08-10)
+
+Async/Promise-based, per the async-first contract above. `snake_case` DB columns map to `camelCase` in these types — the storage layer is the translation point.
+
+```ts
+interface Thread { id: number; title: string; createdAt: number; updatedAt: number; }
+interface Participant { id: number; threadId: number; slot: 1 | 2; role: string; }
+interface Message { id: number; threadId: number; participantId: number; content: string; createdAt: number; }
+interface ThreadDetail extends Thread { participants: [Participant, Participant]; messages: Message[]; }
+```
+
+- `init(): Promise<void>` — load cached DB from IndexedDB, or create a fresh one from schema. Call once on app start.
+- `getThreads(): Promise<Thread[]>` — sidebar list, ordered by `updatedAt` desc. No participants/messages (lightweight).
+- `getThread(threadId): Promise<ThreadDetail>` — full detail (both participants + all messages) for opening a thread.
+- `createThread(title, participant1Role, participant2Role): Promise<ThreadDetail>` — always creates both participants at once; a thread can't exist with fewer than 2.
+- `renameThread(threadId, title): Promise<Thread>` — does **not** bump `updatedAt` (that field tracks message activity, not metadata edits).
+- `deleteThread(threadId): Promise<void>` — cascades to participants/messages via `ON DELETE CASCADE`.
+- `updateParticipantRole(participantId, role): Promise<Participant>` — role is editable anytime; since it's not duplicated per-message, past messages just inherit the new label.
+- `addMessage(threadId, participantId, content): Promise<Message>` — bumps the thread's `updatedAt`; validates `participantId` actually belongs to `threadId`.
+- `exportBytes(): Promise<Uint8Array>` — raw serialized SQLite file, handed to zip.js for AES-256 encryption one layer up (not the zip itself).
+- `importBytes(bytes): Promise<void>` — takes already-decrypted bytes, validates it's a real SQLite file with the expected tables before swapping it in.
+
+**Errors**: typed hierarchy, not bare strings — `StorageError` (base: I/O, serialization, not-initialized) → `NotFoundError`, `ValidationError`, `ImportError`. Every function above rejects with one of these.
+
+**v1 scope confirmed (2026-08-10)**: threads can be renamed and deleted; messages are append-only (no edit/delete, matches a real chat/journal); participant roles are editable anytime.
+
 ## Implementation Approach (decided)
 
 - This project is being built in **very small, bite-sized increments** — deliberately not "vibe coded." The user's priority is understanding every piece of code that goes into the codebase: what it does, why it's there, and how it interacts with other modules and why — not just having a working app.
@@ -98,10 +126,11 @@ CREATE INDEX idx_participants_thread ON participants(thread_id);
 - **Auth / multi-tenant accounts**: after MVP.
 - **Server-side persistent storage** (e.g. "let the server keep my data" instead of zip-only): a distinct future phase requiring its own dedicated security/privacy deliberation before design — not decided now.
 - **AI extras**: not in v1; possible future addition (auto titles/summaries/insights), same priority tier as group chat — nice-to-have, not core.
+- **Capacitor mobile-app wrap (decided direction, post-MVP):** after the web MVP is solid, wrap the same built web app with Capacitor to produce real Android/iOS app-store binaries — no UI rewrite, no Flutter/Kotlin port; the existing React bundle runs inside a native WebView shell as-is. The motivation is storage durability, not UI: an installed app's local storage persists like any other app's data on the device (cleared only on uninstall), unlike a browser tab's storage, which can be evicted or cleared by the user/OS. Web (plain browser, no install) stays the primary, fully-supported MVP target — export/import there remains effectively mandatory, since browser storage isn't reliably durable. Only once wrapped does export/import get to relax from *mandatory* (the user's only real backup) to *optional* (manual backup/portability, e.g. moving data to another device) — the underlying storage-layer code (sql.js + IndexedDB) doesn't change between the two, only the platform's storage durability guarantee, and consequently how urgently the UI should prompt users to export.
 
 ## Status
 
-Concept-finalization stage. No application code yet. Next step is design (UI/UX, then technical architecture) before implementation begins. Once the MVP is fully built, containerize it.
+Implementation in progress. This file (`CLAUDE.md`) holds *what* has been decided — product and architecture. The *process* — phases, sequencing, and exactly which build-plan increment we're on right now — lives in `../iterations.MD` (one level up from this repo), which is the rough guideline for how we proceed step by step. Check it for current progress rather than treating the status line here as authoritative.
 
 ## Design Wireframes
 The UI/UX has been decided. Refer below for the UI/UX.
