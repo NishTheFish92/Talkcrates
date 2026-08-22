@@ -19,15 +19,19 @@ let db: Database | undefined;
 // Note: this always starts fresh. Restoring a previously-saved database
 // from IndexedDB (so a returning user doesn't lose their data) is M3's job,
 // not this one — M1 is only about proving sql.js + our schema work at all.
-export async function initDb(): Promise<void> {
-  const SQL = await initSqlJs({
-    // sql.js ships its engine as two files: a small JS loader (bundled
-    // normally, via the `sql.js` import above) and a separate .wasm binary
-    // that has to be fetched at runtime. locateFile tells it where to find
-    // that binary. We copied sql-wasm.wasm into public/, which Vite serves
-    // as-is at the site root, so this URL resolves to it.
-    locateFile: (file) => `/${file}`,
-  });
+//
+// `locateFile` tells sql.js where to find its .wasm binary (the engine
+// itself ships as two files: a small JS loader, bundled normally via the
+// `sql.js` import above, and a separate .wasm file fetched at runtime). It
+// defaults to the app's real answer — `/sql-wasm.wasm`, which Vite serves
+// as-is because we copied the file into public/ — but takes a parameter
+// instead of hardcoding that, so a Node scratch script (which has no dev
+// server to fetch a URL from) can point it at the file's actual path on
+// disk instead. App code never needs to pass this; only scripts do.
+export async function initDb(
+  locateFile: (file: string) => string = (file) => `/${file}`,
+): Promise<void> {
+  const SQL = await initSqlJs({ locateFile });
 
   db = new SQL.Database();
   db.run(SCHEMA_SQL);
