@@ -7,6 +7,8 @@ import type { BindParams, Database, ParamsObject } from "sql.js";
 import { getDb } from "./db";
 import { NotFoundError, StorageError, ValidationError } from "./errors";
 import type { Message, Participant, Thread, ThreadDetail } from "./types";
+import { saveSnapshot } from "./idb";
+import { enqueueWrite } from "./writeQueue";
 
 // ---- small internal helpers -----------------------------------------
 //
@@ -43,6 +45,15 @@ function lastInsertRowId(database: Database): number {
 
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
+}
+
+// The M3b half of the write-through cache: serialize the live sql.js
+// database to bytes and save those bytes to IndexedDB. Every mutating
+// function below calls this once its own INSERT/UPDATE statements are
+// done, so a write is only considered complete once it's durable in
+// IndexedDB too — not just applied to the in-memory database.
+async function persist(database: Database): Promise<void> {
+  await saveSnapshot(database.export());
 }
 
 // Row -> our camelCase types. The DB gives back snake_case columns
@@ -146,38 +157,45 @@ export async function createThread(
   participant1Role: string,
   participant2Role: string,
 ): Promise<ThreadDetail> {
-  const database = getDb();
-  const now = nowSeconds();
+  // The whole body runs inside enqueueWrite() so this call's mutation +
+  // persist can't interleave with any other mutating call's — see
+  // writeQueue.ts for why that matters.
+  return enqueueWrite(async () => {
+    const database = getDb();
+    const now = nowSeconds();
 
-  database.run(
-    "INSERT INTO threads (title, created_at, updated_at) VALUES (?, ?, ?)",
-    [title, now, now],
-  );
-  const threadId = lastInsertRowId(database);
+    database.run(
+      "INSERT INTO threads (title, created_at, updated_at) VALUES (?, ?, ?)",
+      [title, now, now],
+    );
+    const threadId = lastInsertRowId(database);
 
-  database.run(
-    "INSERT INTO participants (thread_id, slot, role) VALUES (?, 1, ?)",
-    [threadId, participant1Role],
-  );
-  const participant1Id = lastInsertRowId(database);
+    database.run(
+      "INSERT INTO participants (thread_id, slot, role) VALUES (?, 1, ?)",
+      [threadId, participant1Role],
+    );
+    const participant1Id = lastInsertRowId(database);
 
-  database.run(
-    "INSERT INTO participants (thread_id, slot, role) VALUES (?, 2, ?)",
-    [threadId, participant2Role],
-  );
-  const participant2Id = lastInsertRowId(database);
+    database.run(
+      "INSERT INTO participants (thread_id, slot, role) VALUES (?, 2, ?)",
+      [threadId, participant2Role],
+    );
+    const participant2Id = lastInsertRowId(database);
 
-  return {
-    id: threadId,
-    title,
-    createdAt: now,
-    updatedAt: now,
-    participants: [
-      { id: participant1Id, threadId, slot: 1, role: participant1Role },
-      { id: participant2Id, threadId, slot: 2, role: participant2Role },
-    ],
-    messages: [],
-  };
+    await persist(database);
+
+    return {
+      id: threadId,
+      title,
+      createdAt: now,
+      updatedAt: now,
+      participants: [
+        { id: participant1Id, threadId, slot: 1, role: participant1Role },
+        { id: participant2Id, threadId, slot: 2, role: participant2Role },
+      ],
+      messages: [],
+    };
+  });
 }
 
 // Adds one message and bumps the thread's updatedAt (so it jumps to the
@@ -190,38 +208,42 @@ export async function addMessage(
   participantId: number,
   content: string,
 ): Promise<Message> {
-  const database = getDb();
+  return enqueueWrite(async () => {
+    const database = getDb();
 
-  const participants = queryAll(
-    database,
-    "SELECT id, thread_id, slot, role FROM participants WHERE id = ?",
-    [participantId],
-    rowToParticipant,
-  );
-  const participant = participants[0];
-  if (!participant || participant.threadId !== threadId) {
-    throw new ValidationError(
-      `Participant ${participantId} does not belong to thread ${threadId}`,
+    const participants = queryAll(
+      database,
+      "SELECT id, thread_id, slot, role FROM participants WHERE id = ?",
+      [participantId],
+      rowToParticipant,
     );
-  }
+    const participant = participants[0];
+    if (!participant || participant.threadId !== threadId) {
+      throw new ValidationError(
+        `Participant ${participantId} does not belong to thread ${threadId}`,
+      );
+    }
 
-  const now = nowSeconds();
-  database.run(
-    "INSERT INTO messages (thread_id, participant_id, content, created_at) VALUES (?, ?, ?, ?)",
-    [threadId, participantId, content, now],
-  );
-  const messageId = lastInsertRowId(database);
+    const now = nowSeconds();
+    database.run(
+      "INSERT INTO messages (thread_id, participant_id, content, created_at) VALUES (?, ?, ?, ?)",
+      [threadId, participantId, content, now],
+    );
+    const messageId = lastInsertRowId(database);
 
-  database.run("UPDATE threads SET updated_at = ? WHERE id = ?", [
-    now,
-    threadId,
-  ]);
+    database.run("UPDATE threads SET updated_at = ? WHERE id = ?", [
+      now,
+      threadId,
+    ]);
 
-  return {
-    id: messageId,
-    threadId,
-    participantId,
-    content,
-    createdAt: now,
-  };
+    await persist(database);
+
+    return {
+      id: messageId,
+      threadId,
+      participantId,
+      content,
+      createdAt: now,
+    };
+  });
 }
