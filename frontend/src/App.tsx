@@ -1,122 +1,72 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+// App's job right now: get the storage layer initialized once on startup,
+// fetch the thread list, and hand it to Sidebar. Everything about *how*
+// threads get rendered lives in Sidebar — App just owns the async
+// loading/error state around the storage calls.
+
+import { useEffect, useState } from "react";
+import { getThreads, init } from "./storage";
+import type { Thread } from "./storage";
+import { Sidebar } from "./components/Sidebar";
+import "./App.css";
+
+// A small state machine instead of separate loading/error/data booleans —
+// this way the render code below can only ever be in exactly one of these
+// three states, never e.g. "loading" and "error" at once.
+type Status =
+  | { kind: "loading" }
+  | { kind: "ready"; threads: Thread[] }
+  | { kind: "error"; message: string };
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [status, setStatus] = useState<Status>({ kind: "loading" });
 
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+  // Runs once when App first mounts (empty dependency array). init() loads
+  // the sql.js engine and restores any saved IndexedDB snapshot;
+  // getThreads() then reads the sidebar list out of that database.
+  useEffect(() => {
+    // React can unmount this component before the async work below
+    // finishes (e.g. StrictMode's dev-mode double-invoke). `cancelled`
+    // stops a late response from calling setState on an unmounted
+    // component.
+    let cancelled = false;
 
-      <div className="ticks"></div>
+    async function load() {
+      try {
+        await init();
+        const threads = await getThreads();
+        if (!cancelled) {
+          setStatus({ kind: "ready", threads });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setStatus({
+            kind: "error",
+            message:
+              err instanceof Error
+                ? err.message
+                : "Something went wrong loading your chats.",
+          });
+        }
+      }
+    }
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+  if (status.kind === "loading") {
+    return <div className="status-message">Loading your chats…</div>;
+  }
+  if (status.kind === "error") {
+    return (
+      <div className="status-message status-message--error">
+        {status.message}
+      </div>
+    );
+  }
+  return <Sidebar threads={status.threads} />;
 }
 
-export default App
+export default App;
