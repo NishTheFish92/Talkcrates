@@ -32,3 +32,12 @@ export interface ThreadDetail extends Thread {
   participants: [Participant, Participant];
   messages: Message[];
 }
+
+// Small per-user settings that live outside the SQLite database entirely
+// (see CLAUDE.md → "Config file") — cached in localStorage, not IndexedDB,
+// and shipped as config.json alongside the .sqlite file in the export zip.
+export interface Config {
+  version: number;
+  name: string;
+  theme: "vibrant" | "light" | "dark";
+}

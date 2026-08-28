@@ -41,7 +41,7 @@ A chat-interface web app for structured self-dialogue and introspection. Instead
 
 ## Storage & Data Format (decided, details TBD as we build)
 
-- **File inside the zip is a SQLite database**, not JSON. Three tables: `threads`, `participants`, `messages`.
+- **The zip contains two files**: a SQLite database (`talkcrates.sqlite` — three tables: `threads`, `participants`, `messages`) and a small config file (`config.json` — see "Config file" below). Conversation data and small per-user settings are deliberately split into two files rather than one, since the config bits (name, theme) don't fit a relational schema and don't need one.
 - **Client-side engine: sql.js (decided)** — SQLite compiled to WASM, in-memory, no built-in persistence — over OPFS-backed wa-sqlite, because OPFS needs a Web Worker and has rough edges on Safari/iOS, which this app must support well. All access goes through an **async-first interface** (`getThreads()`, `addMessage()`, `exportBytes()`, `importBytes()` — all return Promises) so moving to a Worker/different engine later doesn't force a rewrite across the UI.
 - **IndexedDB write-through cache (decided):** every mutating call (`addMessage()`, `createThread()`, etc.) persists before resolving — mutate sql.js → `export()` → write bytes to IndexedDB, all inside one awaited chain. No debouncing/timers; writes are cheap at this app's scale and correctness matters more than write count. This is the "ephemeral in-session cache" mentioned above — not the durable copy, which is still the zip.
 - **Writes are serialized via an internal queue** in the storage layer (each call chains onto the previous call's promise) so save order always matches call order, regardless of how close together calls happen — prevents a slow write from overwriting a newer one.
@@ -84,6 +84,20 @@ CREATE INDEX idx_participants_thread ON participants(thread_id);
 - **Ordering**: no separate sequence column. SQLite's `INTEGER PRIMARY KEY` (the rowid) is monotonically increasing on insert, so `ORDER BY id` on `messages` gives correct chronological order for free.
 - **Timestamps** are `INTEGER` unix epoch seconds (not ISO8601 text) — smaller, sorts/compares as plain numbers, no string parsing needed.
 
+### Config file (decided, 2026-08-28)
+
+Small per-user settings that aren't conversation data — currently just the user's name and theme preference — don't belong in the SQLite schema (no relational shape to them, and they're read/written completely differently: one value at a time, not rows). They get their own file instead.
+
+```json
+{ "version": 1, "name": "", "theme": "vibrant" }
+```
+
+- `version` — schema-version field for this file specifically, same reasoning as keeping `participants.role` free text: cheap now, avoids a painful migration later if fields get added/renamed.
+- `name` — the user's own name, captured during onboarding (see "Preset defaults" above — `{Name}` / `Rational {Name}` are computed from this at render time). Defaults to `""` until onboarding sets it (onboarding itself isn't in the build plan yet — see `../iterations.MD`).
+- `theme` — one of `"vibrant" | "light" | "dark"`, matching the wireframe's theme picker (onboarding + settings screens). `"vibrant"` is the default and the only one actually styled for now; `"light"`/`"dark"` are picked up as a distinct later feature (the picker UI + actually switching tokens at runtime), not built alongside the sidebar/chat work.
+- **Ephemeral in-session cache: `localStorage`, not IndexedDB.** The DB uses IndexedDB because sql.js needs to read/write it as an opaque byte blob through an async API. Config is a handful of primitives with no such requirement — `localStorage` is simpler (synchronous, no schema) and a better fit for something this small. Both are still just the *ephemeral* cache; the zip remains the only durable copy, per the storage model above.
+- **Zip layout**: `config.json` sits alongside `talkcrates.sqlite` in the export zip, under the same AES-256 encryption — not a separate unencrypted file.
+
 ### Storage-layer interface (decided, 2026-08-10)
 
 Async/Promise-based, per the async-first contract above. `snake_case` DB columns map to `camelCase` in these types — the storage layer is the translation point.
@@ -93,9 +107,12 @@ interface Thread { id: number; title: string; createdAt: number; updatedAt: numb
 interface Participant { id: number; threadId: number; slot: 1 | 2; role: string; }
 interface Message { id: number; threadId: number; participantId: number; content: string; createdAt: number; }
 interface ThreadDetail extends Thread { participants: [Participant, Participant]; messages: Message[]; }
+interface Config { version: number; name: string; theme: "vibrant" | "light" | "dark"; }
 ```
 
 - `init(): Promise<void>` — load cached DB from IndexedDB, or create a fresh one from schema. Call once on app start.
+- `getConfig(): Promise<Config>` — reads from `localStorage`; returns the default config (`{ version: 1, name: "", theme: "vibrant" }`) if nothing's been saved yet, rather than throwing.
+- `updateConfig(patch: Partial<Omit<Config, "version">>): Promise<Config>` — merges `patch` into the current config and saves it back to `localStorage`. A patch, not a full replace, so setting the theme doesn't require also re-passing the name.
 - `getThreads(): Promise<Thread[]>` — sidebar list, ordered by `updatedAt` desc. No participants/messages (lightweight).
 - `getThread(threadId): Promise<ThreadDetail>` — full detail (both participants + all messages) for opening a thread.
 - `createThread(title, participant1Role, participant2Role): Promise<ThreadDetail>` — always creates both participants at once; a thread can't exist with fewer than 2.
