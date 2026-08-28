@@ -21,6 +21,11 @@
      matches whatever the active conversation's two colors are. */
   --color-sent: #ff8f5e;
   --color-recv: #a78bfa;
+  /* Bubble text color for each — near-black rather than plain white so
+     text sits comfortably on top of a bright/light bubble color, matching
+     the wireframe's ink pair for its default sent/recv colors. */
+  --color-sent-ink: #22091f;
+  --color-recv-ink: #04221d;
 
   --font-body: 'Inter', system-ui, sans-serif;
   --font-heading: 'Inter', system-ui, sans-serif;

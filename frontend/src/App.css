@@ -1,12 +1,18 @@
-/* Layout for the sidebar/thread-list screen (M4) and the loading/error
-   states App.tsx shows before it's ready. Card styling (14px radius,
-   surface background, inset border) matches the wireframe's thread-item
-   buttons on screen 5. */
+/* Layout for the sidebar/thread-list screen (M4), the one-time
+   name-capture screen (M4c), create-thread (M5), the chat view + composer
+   (M6/M7), and the loading/error states shown while storage calls are in
+   flight. Card/input/button proportions (14px radius, 56px height) match
+   the wireframe's corresponding screens. */
 
 .sidebar {
   max-width: 480px;
+  min-height: 100svh; /* without this, .sidebar-new-button--floating's
+    bottom:Npx anchors to the end of the thread list, not the screen — with
+    few threads it ends up floating right next to the last card instead of
+    pinned to the corner */
   margin: 0 auto;
   padding: 24px 20px 40px;
+  position: relative; /* anchors .sidebar-new-button--floating */
 }
 
 .sidebar-header {
@@ -19,9 +25,13 @@
 }
 
 .sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
   color: var(--color-text-muted);
   text-align: center;
-  padding: 48px 0;
+  padding: 64px 0;
 }
 
 .thread-list {
@@ -33,14 +43,27 @@
   gap: 10px;
 }
 
+/* .thread-item is a <button> (Sidebar wraps each in a plain <li>) so it's
+   keyboard-focusable and semantically a click target, not just styled
+   like one — this resets the default button chrome away first. */
 .thread-item {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  width: 100%;
   padding: 15px 16px;
+  border: none;
   border-radius: 14px;
   background: var(--color-surface);
   box-shadow: inset 0 0 0 1px var(--color-border);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.thread-item:hover {
+  box-shadow: inset 0 0 0 1px var(--color-text-muted);
 }
 
 .thread-title {
@@ -51,6 +74,29 @@
 .thread-meta {
   font-size: 13px;
   color: var(--color-text-muted);
+}
+
+.sidebar-new-button {
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #141528;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sidebar-new-button--empty {
+  width: 72px;
+  height: 72px;
+}
+
+.sidebar-new-button--floating {
+  position: absolute;
+  right: 0;
+  bottom: 20px;
+  width: 56px;
+  height: 56px;
 }
 
 .status-message {
@@ -65,4 +111,313 @@
 
 .status-message--error {
   color: var(--color-accent);
+}
+
+.name-capture {
+  min-height: 100svh;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 0 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 26px;
+}
+
+.name-capture h1 {
+  font-size: 34px;
+  line-height: 1.14;
+  letter-spacing: -0.02em;
+}
+
+.name-capture-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.name-capture-input {
+  flex: 1;
+  height: 56px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  font: inherit;
+  font-size: 16px;
+}
+
+.name-capture-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.name-capture-submit {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-accent);
+  color: #141528;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.name-capture-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* — create-thread (M5) — */
+
+.create-thread {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 30px 20px 26px;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.create-thread h1 {
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+
+.field label {
+  display: block;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 7px;
+}
+
+.create-thread-input {
+  width: 100%;
+  height: 52px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  font: inherit;
+  font-size: 16px;
+}
+
+.create-thread-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.create-thread-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 12px;
+}
+
+/* Generic button styles — shared by create-thread's Cancel/Create for now.
+   Small enough to keep inline here rather than its own file. */
+.btn {
+  flex: 1;
+  height: 52px;
+  border-radius: 13px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: #141528;
+  border: none;
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* — role picker (used twice inside create-thread) — */
+
+.role-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-picker-label {
+  width: 78px;
+  flex: none;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.role-picker-select,
+.role-picker-input {
+  flex: 1;
+  height: 48px;
+  padding: 0 12px;
+  border-radius: 11px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  font: inherit;
+  font-size: 15px;
+}
+
+.role-picker-select:focus-visible,
+.role-picker-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* — chat view (M6) + composer (M7) — */
+
+.chat-view {
+  max-width: 560px;
+  margin: 0 auto;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.chat-back,
+.chat-swap {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.chat-swap {
+  color: var(--color-accent);
+}
+
+.chat-back:hover,
+.chat-swap:hover {
+  background: var(--color-surface);
+}
+
+.chat-header-title {
+  flex: 1;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-empty {
+  margin: auto;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 0 24px;
+}
+
+.chat-bubble-row {
+  display: flex;
+}
+
+.chat-bubble-row--sent {
+  justify-content: flex-end;
+}
+
+.chat-bubble-row--recv {
+  justify-content: flex-start;
+}
+
+.chat-bubble {
+  max-width: 78%;
+  padding: 12px 16px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.chat-bubble--sent {
+  background: var(--color-sent);
+  color: var(--color-sent-ink);
+  border-radius: 22px 22px 8px 22px;
+}
+
+.chat-bubble--recv {
+  background: var(--color-recv);
+  color: var(--color-recv-ink);
+  border-radius: 22px 22px 22px 8px;
+}
+
+.composer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.composer-input {
+  flex: 1;
+  height: 48px;
+  padding: 0 18px;
+  border-radius: 24px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  font: inherit;
+  font-size: 15px;
+}
+
+.composer-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.composer-send {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-accent);
+  color: #141528;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.composer-send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

@@ -1,12 +1,14 @@
-// The sidebar/thread-list — M4's whole job. Purely presentational: it's
-// handed the threads App.tsx already fetched and just renders them. No
-// storage calls in here, and no click handling yet — opening a thread is
-// M6's job, creating one is M5's.
+// The sidebar/thread-list. Purely presentational: it's handed the threads
+// Home already fetched, plus two callbacks for the two things you can do
+// from here — open a thread or start a new one. No storage calls of its
+// own, same split every other screen component uses.
 
 import type { Thread } from "../storage";
 
 interface SidebarProps {
   threads: Thread[];
+  onSelectThread: (threadId: number) => void;
+  onNewThread: () => void;
 }
 
 // Turns a unix-seconds timestamp into a short "how long ago" label, e.g.
@@ -26,25 +28,51 @@ function timeAgo(unixSeconds: number): string {
   return `${diffDays}d ago`;
 }
 
-export function Sidebar({ threads }: SidebarProps) {
+export function Sidebar({ threads, onSelectThread, onNewThread }: SidebarProps) {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
         <h1>Chats</h1>
       </div>
       {threads.length === 0 ? (
-        <div className="sidebar-empty">No chats yet.</div>
+        <div className="sidebar-empty">
+          <p>No chats yet.</p>
+          <button
+            type="button"
+            className="sidebar-new-button sidebar-new-button--empty"
+            onClick={onNewThread}
+            aria-label="New chat"
+          >
+            +
+          </button>
+        </div>
       ) : (
-        <ul className="thread-list">
-          {threads.map((thread) => (
-            <li key={thread.id} className="thread-item">
-              <span className="thread-title">{thread.title}</span>
-              <span className="thread-meta">
-                Updated {timeAgo(thread.updatedAt)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="thread-list">
+            {threads.map((thread) => (
+              <li key={thread.id}>
+                <button
+                  type="button"
+                  className="thread-item"
+                  onClick={() => onSelectThread(thread.id)}
+                >
+                  <span className="thread-title">{thread.title}</span>
+                  <span className="thread-meta">
+                    Updated {timeAgo(thread.updatedAt)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="sidebar-new-button sidebar-new-button--floating"
+            onClick={onNewThread}
+            aria-label="New chat"
+          >
+            +
+          </button>
+        </>
       )}
     </div>
   );
