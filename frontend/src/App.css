@@ -2,10 +2,91 @@
    name-capture screen (M4c), create-thread (M5), the chat view + composer
    (M6/M7), and the loading/error states shown while storage calls are in
    flight. Card/input/button proportions (14px radius, 56px height) match
-   the wireframe's corresponding screens. */
+   the wireframe's corresponding screens.
+
+   Responsive approach: every screen is a single centered column
+   (max-width + margin:auto), same shape the wireframe uses (it's a phone
+   app end to end) — biased toward phone. `--screen-max` widens a little
+   past a laptop-width breakpoint so screens don't stay pinned to their
+   phone-width cap on a wide monitor, and comfortable touch targets (44px+)
+   are kept at every size rather than shrunk for desktop. The one
+   exception is Home's three screens (sidebar/create/chat) past that same
+   breakpoint, which switch to a persistent two-pane layout instead — see
+   "two-pane app shell" near the end of this file. */
+
+:root {
+  --screen-max: 480px;
+}
+
+@media (min-width: 900px) {
+  :root {
+    --screen-max: 620px;
+  }
+}
+
+/* — animation building blocks, reused across every screen/interaction — */
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes bubble-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Every clickable control gets the same press feedback: a quick shrink on
+   :active, plus a smooth transition on the properties hover states below
+   actually change (background/border/box-shadow/filter) so those read as
+   an animation rather than an instant snap. prefers-reduced-motion turns
+   all of this off further down. */
+button,
+.thread-item,
+.sidebar-new-button,
+.name-capture-submit,
+.composer-send,
+.chat-back,
+.chat-swap {
+  transition:
+    transform 120ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    filter 150ms ease,
+    border-color 150ms ease,
+    opacity 150ms ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+/* Respect the OS-level "reduce motion" setting — turn animations into
+   instant state changes rather than force everyone to sit through them. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 .sidebar {
-  max-width: 480px;
+  max-width: var(--screen-max);
   min-height: 100svh; /* without this, .sidebar-new-button--floating's
     bottom:Npx anchors to the end of the thread list, not the screen — with
     few threads it ends up floating right next to the last card instead of
@@ -13,6 +94,7 @@
   margin: 0 auto;
   padding: 24px 20px 40px;
   position: relative; /* anchors .sidebar-new-button--floating */
+  animation: screen-in 0.32s ease;
 }
 
 .sidebar-header {
@@ -86,6 +168,10 @@
   cursor: pointer;
 }
 
+.sidebar-new-button:hover {
+  filter: brightness(1.07);
+}
+
 .sidebar-new-button--empty {
   width: 72px;
   height: 72px;
@@ -93,7 +179,12 @@
 
 .sidebar-new-button--floating {
   position: absolute;
-  right: 0;
+  /* right:0 here would align to .sidebar's own outer edge, not the 20px
+     inset the thread cards actually sit at (cards are inset via padding,
+     but an absolutely-positioned child ignores that padding) — matching
+     the padding value directly is what actually lines it up with the
+     cards instead of overshooting past them. */
+  right: 20px;
   bottom: 20px;
   width: 56px;
   height: 56px;
@@ -107,6 +198,7 @@
   color: var(--color-text-muted);
   text-align: center;
   padding: 24px;
+  animation: screen-in 0.32s ease;
 }
 
 .status-message--error {
@@ -115,13 +207,14 @@
 
 .name-capture {
   min-height: 100svh;
-  max-width: 420px;
+  max-width: min(420px, var(--screen-max));
   margin: 0 auto;
   padding: 0 28px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 26px;
+  animation: screen-in 0.32s ease;
 }
 
 .name-capture h1 {
@@ -138,6 +231,10 @@
 
 .name-capture-input {
   flex: 1;
+  min-width: 0; /* text inputs default to a min-width that resists
+    shrinking in a flex row — without this it pushes the submit button
+    past the edge on narrow screens instead of compressing (see the same
+    issue/fix on .composer-input, .role-picker-select/-input) */
   height: 56px;
   padding: 0 18px;
   border-radius: 14px;
@@ -146,6 +243,10 @@
   border: 1px solid var(--color-border);
   font: inherit;
   font-size: 16px;
+}
+
+.name-capture-input:hover {
+  border-color: var(--color-text-muted);
 }
 
 .name-capture-input:focus-visible {
@@ -165,6 +266,10 @@
   cursor: pointer;
 }
 
+.name-capture-submit:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+
 .name-capture-submit:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -173,13 +278,14 @@
 /* — create-thread (M5) — */
 
 .create-thread {
-  max-width: 420px;
+  max-width: min(420px, var(--screen-max));
   margin: 0 auto;
   padding: 30px 20px 26px;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
   gap: 18px;
+  animation: screen-in 0.32s ease;
 }
 
 .create-thread h1 {
@@ -207,6 +313,10 @@
   border: 1px solid var(--color-border);
   font: inherit;
   font-size: 16px;
+}
+
+.create-thread-input:hover {
+  border-color: var(--color-text-muted);
 }
 
 .create-thread-input:focus-visible {
@@ -239,10 +349,19 @@
   border: 1px solid var(--color-border);
 }
 
+.btn-secondary:hover {
+  border-color: var(--color-text-muted);
+  background: var(--color-surface);
+}
+
 .btn-primary {
   background: var(--color-accent);
   color: #141528;
   border: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.07);
 }
 
 .btn-primary:disabled {
@@ -268,6 +387,7 @@
 .role-picker-select,
 .role-picker-input {
   flex: 1;
+  min-width: 0; /* see .name-capture-input's comment — same flex-shrink fix */
   height: 48px;
   padding: 0 12px;
   border-radius: 11px;
@@ -276,6 +396,11 @@
   border: 1px solid var(--color-border);
   font: inherit;
   font-size: 15px;
+}
+
+.role-picker-select:hover,
+.role-picker-input:hover {
+  border-color: var(--color-text-muted);
 }
 
 .role-picker-select:focus-visible,
@@ -287,11 +412,12 @@
 /* — chat view (M6) + composer (M7) — */
 
 .chat-view {
-  max-width: 560px;
+  max-width: var(--screen-max);
   margin: 0 auto;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
+  animation: screen-in 0.32s ease;
 }
 
 .chat-header {
@@ -326,6 +452,12 @@
 
 .chat-header-title {
   flex: 1;
+  min-width: 0; /* lets the ellipsis rules below actually take effect
+    inside a flex row — without this the flex item refuses to shrink
+    past its text's natural width and just overflows the header instead */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-family: var(--font-heading);
   font-weight: 600;
   font-size: 19px;
@@ -352,6 +484,14 @@
   display: flex;
 }
 
+/* Only applied to the specific row that was just sent (see ChatView.tsx's
+   `justSentId`) — a genuinely new bubble pops in; existing ones don't
+   replay this when POV swaps (that's handled separately, see the FLIP
+   comment on .chat-bubble below). */
+.chat-bubble-row--new {
+  animation: bubble-pop 0.3s ease;
+}
+
 .chat-bubble-row--sent {
   justify-content: flex-end;
 }
@@ -365,6 +505,18 @@
   padding: 12px 16px;
   font-size: 15px;
   line-height: 1.5;
+  /* Position sliding on POV swap is driven by ChatView.tsx's FLIP effect
+     (measures each bubble's position before the swap, then animates from
+     there back to its new natural position via inline transform/transition
+     — that's why background/color get their own transition here too,
+     so the sent/recv color swap cross-fades alongside the slide instead
+     of snapping instantly). will-change hints the browser this element's
+     transform is about to be animated, matching the wireframe's own use
+     of will-change for the same reason. */
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+  will-change: transform;
 }
 
 .chat-bubble--sent {
@@ -390,6 +542,7 @@
 
 .composer-input {
   flex: 1;
+  min-width: 0; /* see .name-capture-input's comment — same flex-shrink fix */
   height: 48px;
   padding: 0 18px;
   border-radius: 24px;
@@ -398,6 +551,10 @@
   border: 1px solid var(--color-border);
   font: inherit;
   font-size: 15px;
+}
+
+.composer-input:hover {
+  border-color: var(--color-text-muted);
 }
 
 .composer-input:focus-visible {
@@ -417,7 +574,102 @@
   cursor: pointer;
 }
 
+.composer-send:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+
 .composer-send:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* — two-pane app shell (Home.tsx) —
+   Below the laptop breakpoint: exactly one of the two panes is visible at
+   a time — same single-screen-at-a-time navigation every other screen in
+   the app uses. Home.tsx puts app-shell--list or app-shell--detail on the
+   wrapper depending on which screen is "active"; these two rules are what
+   actually hide the other pane on a phone-width screen.
+   Past the breakpoint: both panes show permanently side by side
+   (ChatGPT/Claude-style) regardless of which modifier class is present —
+   the media query below overrides both display rules back to visible. */
+
+.app-shell {
+  display: flex;
+  min-height: 100svh;
+}
+
+.app-sidebar-pane,
+.app-detail-pane {
+  width: 100%;
+  min-width: 0; /* same flex-shrink footgun noted on the form inputs above
+    — without it a wide enough child (e.g. a long chat bubble) could
+    resist shrinking and push the row wider than the viewport */
+}
+
+.app-shell--list .app-detail-pane {
+  display: none;
+}
+
+.app-shell--detail .app-sidebar-pane {
+  display: none;
+}
+
+.app-detail-empty {
+  display: none; /* only ever shown past the breakpoint below — on a
+    phone this pane is already hidden entirely by app-shell--list above */
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 24px;
+}
+
+@media (min-width: 900px) {
+  .app-shell--list .app-detail-pane,
+  .app-shell--detail .app-sidebar-pane {
+    display: flex; /* wins over the mobile-only rules above: same
+      selector specificity, later in the file, so it takes the tie */
+    flex-direction: column;
+  }
+
+  .app-sidebar-pane {
+    flex: none;
+    width: 340px;
+    border-right: 1px solid var(--color-border);
+    overflow-y: auto;
+  }
+
+  .app-detail-pane {
+    flex: 1;
+    overflow: hidden; /* ChatView's own .chat-messages scrolls internally */
+  }
+
+  .app-detail-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+
+  /* Inside the two-pane layout, .sidebar/.chat-view/.create-thread no
+     longer need to center themselves as a phone-width column with their
+     own margin — they should just fill whichever pane now holds them.
+     min-height switches from 100svh (fill the viewport) to 100% (fill
+     the pane) for the same reason. */
+  .app-sidebar-pane .sidebar,
+  .app-detail-pane .chat-view,
+  .app-detail-pane .create-thread {
+    max-width: none;
+    margin: 0;
+    min-height: 100%;
+  }
+
+  .app-detail-pane .status-message {
+    min-height: 100%;
+  }
+
+  /* Redundant once the sidebar is permanently visible alongside — on
+     mobile it's how you leave the chat screen; here you'd just click a
+     different thread (or "+") in the sidebar that's already on screen. */
+  .chat-back {
+    display: none;
+  }
 }
