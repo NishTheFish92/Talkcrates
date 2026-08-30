@@ -9,7 +9,13 @@
 // either (see CLAUDE.md -> SQLite schema -> "Bubble left/right rendering
 // is computed live, client-side").
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type UIEvent,
+} from "react";
 import { addMessage, getThread } from "../storage";
 import type { Message, ThreadDetail } from "../storage";
 import { MessageComposer } from "./MessageComposer";
@@ -39,6 +45,10 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
   // Which message (if any) should play the bubble-pop entrance animation
   // — only the one just sent, not every bubble on every render.
   const [justSentId, setJustSentId] = useState<number | null>(null);
+  // Whether to show the floating "jump to bottom" button — true once the
+  // user has scrolled up away from the newest message. Driven by
+  // .chat-messages's own onScroll below, not by anything storage-related.
+  const [scrolledUp, setScrolledUp] = useState(false);
 
   // FLIP animation state for the POV swap — this is what makes bubbles
   // actually slide from their old side to their new one, rather than
@@ -55,11 +65,17 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
   const bubbleRefs = useRef(new Map<number, HTMLDivElement>());
   const pendingRects = useRef<Map<number, DOMRect> | null>(null);
 
+  // .chat-messages itself (not an individual bubble) — used below to jump
+  // it to its own bottom, the same way any real chat app opens on the
+  // newest message rather than the oldest.
+  const messagesRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     let cancelled = false;
     setStatus({ kind: "loading" });
     setPov(0);
     setJustSentId(null);
+    setScrolledUp(false);
     getThread(threadId)
       .then((thread) => {
         if (!cancelled) setStatus({ kind: "ready", thread });
@@ -79,6 +95,39 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
       cancelled = true;
     };
   }, [threadId]);
+
+  // Jump .chat-messages to its own bottom whenever a thread first loads or
+  // a new message is added — without this it would open scrolled to the
+  // top (the oldest message), the same way any freshly-rendered scroll
+  // container defaults to scrollTop 0, and reading a thread would mean
+  // manually scrolling down to the newest message every time. This only
+  // actually matters now that .chat-messages is the thing that scrolls
+  // internally rather than the whole page (see App.css's .chat-view
+  // height comment) — scrolling the *page* to its bottom wouldn't have
+  // reliably meant "the newest message" the way scrolling this one
+  // container does.
+  //
+  // useLayoutEffect, not useEffect, so the jump happens before the browser
+  // paints — otherwise there'd be a visible flash of the top of the
+  // thread before it snapped down to the bottom.
+  const readyThreadId = status.kind === "ready" ? status.thread.id : null;
+  const readyMessageCount =
+    status.kind === "ready" ? status.thread.messages.length : null;
+
+  useLayoutEffect(() => {
+    // readyThreadId is null exactly when status.kind isn't "ready" — checked
+    // instead of status.kind directly so this effect only references values
+    // that are actually in its dependency array below.
+    if (readyThreadId === null) return;
+    const el = messagesRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    // Set directly rather than waiting on the 'scroll' event this
+    // assignment triggers (browsers dispatch that asynchronously) — this
+    // way the "jump to bottom" button never has a chance to flash on
+    // between "message just arrived" and "the scroll event catches up".
+    setScrolledUp(false);
+  }, [readyThreadId, readyMessageCount]);
 
   // The "Invert, Play" half of FLIP. Runs after every render where
   // handleSwapPov left measurements in pendingRects — useLayoutEffect
@@ -154,6 +203,33 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
     onMessageSent?.();
   }
 
+  // Fires on every scroll inside .chat-messages, including the
+  // programmatic jumps above (assigning scrollTop dispatches a real
+  // 'scroll' event too) — this is only what shows/hides the button;
+  // hiding it after our own jumps is handled directly there instead of by
+  // relying on this to catch up.
+  function handleMessagesScroll(e: UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // A small threshold rather than exactly 0 — right at the bottom,
+    // sub-pixel rounding from the browser can leave this at 1px instead
+    // of 0 and make the button flicker in when the user hasn't actually
+    // scrolled anywhere.
+    setScrolledUp(distanceFromBottom > 40);
+  }
+
+  function handleJumpToBottom() {
+    const el = messagesRef.current;
+    if (!el) return;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+  }
+
   function handleSwapPov() {
     // First: measure every bubble's current position before anything
     // changes. Stashed in a ref (not state) since this doesn't need to
@@ -189,7 +265,11 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
         </button>
       </div>
 
-      <div className="chat-messages">
+      <div
+        className="chat-messages"
+        ref={messagesRef}
+        onScroll={handleMessagesScroll}
+      >
         {thread.messages.length === 0 ? (
           <div className="chat-empty">
             No messages yet — say something as {me.role}.
@@ -217,6 +297,17 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
           })
         )}
       </div>
+
+      {scrolledUp && (
+        <button
+          type="button"
+          className="chat-jump-to-bottom"
+          onClick={handleJumpToBottom}
+          aria-label="Jump to newest message"
+        >
+          ↓
+        </button>
+      )}
 
       <MessageComposer
         placeholder={`Message as ${me.role}`}

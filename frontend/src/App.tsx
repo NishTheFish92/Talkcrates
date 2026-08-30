@@ -10,6 +10,7 @@ import type { Config } from "./storage";
 import { SessionChoice } from "./components/SessionChoice";
 import { NameCapture } from "./components/NameCapture";
 import { Home } from "./components/Home";
+import { seedGettingStartedThread } from "./gettingStartedThread";
 import "./App.css";
 
 // A small state machine instead of separate loading/error/data booleans —
@@ -118,11 +119,24 @@ function App() {
     setStatus({ kind: "ready", name: "" });
   }
 
-  // Called once the user submits the name-capture form.
+  // Called once the user submits the name-capture form — the tail end of
+  // the "New Session" path (see the Status type comment above). Unlike
+  // handleImportDummy, this is the one place that knows both "this is a
+  // genuinely new user" and "here's their name", so it's the right spot to
+  // seed the example thread. Seeding happens *before* setStatus flips to
+  // "ready" and Home mounts, not after — Home loads its thread list once,
+  // on mount, so if the seed thread were still being written in the
+  // background the sidebar would render empty and never pick it up without
+  // a reload.
+  //
+  // If saving the name itself fails, that's a real storage problem and
+  // still surfaces the error screen as before. If the name saves fine but
+  // seeding the example thread fails, that's a lower-stakes, nice-to-have
+  // failure, so it's logged and swallowed rather than blocking the user
+  // from reaching an otherwise-working app.
   async function handleNameSubmit(name: string) {
     try {
       await updateConfig({ name });
-      setStatus({ kind: "ready", name });
     } catch (err) {
       setStatus({
         kind: "error",
@@ -131,7 +145,16 @@ function App() {
             ? err.message
             : "Something went wrong saving your name.",
       });
+      return;
     }
+
+    try {
+      await seedGettingStartedThread(name);
+    } catch (err) {
+      console.warn("Couldn't seed the Getting started thread:", err);
+    }
+
+    setStatus({ kind: "ready", name });
   }
 
   // Settings' Personalization tab editing the name after the fact —

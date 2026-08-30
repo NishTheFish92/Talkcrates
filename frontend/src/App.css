@@ -94,13 +94,17 @@ button:active:not(:disabled) {
 
 .sidebar {
   max-width: var(--screen-max);
-  min-height: 100svh; /* without this, .sidebar-new-button--floating's
-    bottom:Npx anchors to the end of the thread list, not the screen — with
-    few threads it ends up floating right next to the last card instead of
-    pinned to the corner */
+  /* height, not min-height — same bug/fix as .chat-view (see its comment).
+     min-height only floors this at one screen; it doesn't cap it, so a
+     long thread-list could grow .sidebar taller than the viewport, and
+     the page would scroll as a whole instead of staying pinned to one
+     screen with just .thread-list scrolling inside it. */
+  height: 100svh;
   margin: 0 auto;
   padding: 24px 20px 40px;
   position: relative; /* anchors .sidebar-new-button--floating */
+  display: flex;
+  flex-direction: column;
   animation: screen-in 0.32s ease;
 }
 
@@ -164,10 +168,22 @@ button:active:not(:disabled) {
 .thread-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  /* flex:1 + overflow-y:auto (below) makes this the thing that scrolls,
+     not the page — same pattern as .chat-messages in ChatView. The bottom
+     padding is extra, on top of that: .sidebar-new-button--floating sits
+     on top of this list (position:absolute, not a row of its own — a
+     standard floating-action-button placement, same as the wireframe's),
+     so without reserving space for it here, the last thread card would
+     end up scrolling to a stop directly underneath it instead of fully
+     clear. The button is 56px tall, anchored 20px up from .sidebar's
+     inner edge, so it occupies roughly the bottom 76px of the box —
+     84px leaves a small margin past that. */
+  padding: 0 0 84px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1;
+  overflow-y: auto;
 }
 
 /* .thread-item is a <button> (Sidebar wraps each in a plain <li>) so it's
@@ -594,10 +610,19 @@ button:active:not(:disabled) {
 .chat-view {
   max-width: var(--screen-max);
   margin: 0 auto;
-  min-height: 100svh;
+  /* height, not min-height: min-height is only a floor, so the column
+     could grow taller than one screen as messages pile up. Once it did,
+     .chat-messages's own overflow-y:auto below never actually had a
+     boundary to scroll within — it just kept growing along with
+     .chat-view — so the browser fell back to scrolling the whole page,
+     dragging .chat-header and .composer along with it instead of leaving
+     them pinned. A real height caps .chat-view at one screen, which is
+     what makes .chat-messages the thing that scrolls instead. */
+  height: 100svh;
   display: flex;
   flex-direction: column;
   animation: screen-in 0.32s ease;
+  position: relative; /* anchors .chat-jump-to-bottom */
 }
 
 .chat-header {
@@ -651,6 +676,36 @@ button:active:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* Floating "jump to newest message" button — only rendered (ChatView.tsx)
+   once .chat-messages's own onScroll reports the user has scrolled away
+   from the bottom. Positioned relative to .chat-view (position:relative
+   above), not .chat-messages, since .chat-messages is the thing that
+   scrolls — an absolutely-positioned child of a scrolling container
+   scrolls right along with its content, which would carry this button
+   out of view exactly when it's needed. Sitting just above .composer
+   (a fixed ~76px tall: 48px input + 12px/16px top/bottom padding) rather
+   than overlapping it. */
+.chat-jump-to-bottom {
+  position: absolute;
+  right: 20px;
+  bottom: 92px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  animation: bubble-pop 0.2s ease;
+}
+
+.chat-jump-to-bottom:hover {
+  filter: brightness(1.07);
 }
 
 .chat-empty {
@@ -809,7 +864,12 @@ button:active:not(:disabled) {
 
 .app-shell {
   display: flex;
-  min-height: 100svh;
+  /* Same reasoning as .chat-view's height above: this needs to be a real
+     ceiling, not just a floor, or .app-detail-pane's overflow:hidden and
+     .app-sidebar-pane's overflow-y:auto below (both meant to contain
+     scrolling to inside their own pane) have nothing definite to clip
+     against and silently do nothing. */
+  height: 100svh;
 }
 
 .app-sidebar-pane,
@@ -869,11 +929,20 @@ button:active:not(:disabled) {
      min-height switches from 100svh (fill the viewport) to 100% (fill
      the pane) for the same reason. */
   .app-sidebar-pane .sidebar,
-  .app-detail-pane .chat-view,
   .app-detail-pane .create-thread {
     max-width: none;
     margin: 0;
     min-height: 100%;
+  }
+
+  /* .chat-view gets height, not min-height, unlike its two siblings above
+     — see the base .chat-view rule's comment for why it specifically
+     needs a real ceiling (so .chat-messages stays the thing that
+     scrolls). */
+  .app-detail-pane .chat-view {
+    max-width: none;
+    margin: 0;
+    height: 100%;
   }
 
   .app-detail-pane .status-message {
