@@ -42,6 +42,16 @@ export async function initDb(
     db = new SQL.Database();
     db.run(SCHEMA_SQL);
   }
+
+  // SQLite ignores every ON DELETE CASCADE in schema.ts unless foreign key
+  // enforcement is turned on for the connection — and it's off by default.
+  // This isn't something the schema file itself can set: it's a per-
+  // connection setting, not something stored in the database bytes, so it
+  // has to be re-applied here every time a Database is opened (both the
+  // fresh-schema branch above and the restored-from-snapshot one).
+  // Without this, deleteThread()'s single `DELETE FROM threads` would
+  // leave that thread's participants/messages behind as orphaned rows.
+  db.run("PRAGMA foreign_keys = ON;");
 }
 
 // Every other storage function calls this to get the live database, rather

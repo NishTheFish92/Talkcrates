@@ -14,7 +14,7 @@
 // (ChatGPT/Claude-style) — see the media query in App.css.
 
 import { useEffect, useState } from "react";
-import { createThread, getThreads } from "../storage";
+import { createThread, deleteThread, getThreads, renameThread } from "../storage";
 import type { Config, Thread } from "../storage";
 import { Sidebar } from "./Sidebar";
 import { CreateThread } from "./CreateThread";
@@ -65,6 +65,47 @@ export function Home({ name, onNameChange, theme, onThemeChange }: HomeProps) {
     reloadThreads();
   }, []);
 
+  // Renaming just needs a re-fetch afterward — the thread being renamed
+  // isn't necessarily the one currently open, so there's no view-state
+  // change to make (unlike delete, below).
+  async function handleRenameThread(threadId: number, title: string) {
+    try {
+      await renameThread(threadId, title);
+      await reloadThreads();
+    } catch (err) {
+      setStatus({
+        kind: "error",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Something went wrong renaming that chat.",
+      });
+    }
+  }
+
+  // If the thread being deleted is the one currently open in ChatView,
+  // navigate back to the list first — otherwise ChatView would keep
+  // showing a thread that no longer exists in storage (its own effect
+  // only re-fetches when `threadId` itself changes, not on a delete
+  // happening elsewhere).
+  async function handleDeleteThread(threadId: number) {
+    try {
+      await deleteThread(threadId);
+      if (view.kind === "thread" && view.threadId === threadId) {
+        setView({ kind: "list" });
+      }
+      await reloadThreads();
+    } catch (err) {
+      setStatus({
+        kind: "error",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Something went wrong deleting that chat.",
+      });
+    }
+  }
+
   if (status.kind === "loading") {
     return <div className="status-message">Loading your chats…</div>;
   }
@@ -90,6 +131,8 @@ export function Home({ name, onNameChange, theme, onThemeChange }: HomeProps) {
           onSelectThread={(threadId) => setView({ kind: "thread", threadId })}
           onNewThread={() => setView({ kind: "create" })}
           onOpenSettings={() => setSettingsOpen(true)}
+          onRenameThread={handleRenameThread}
+          onDeleteThread={handleDeleteThread}
         />
       </div>
 

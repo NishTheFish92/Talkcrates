@@ -92,6 +92,78 @@ button:active:not(:disabled) {
   }
 }
 
+/* — scrollbars for the two screens with an internally-scrolling region:
+   .thread-list (the sidebar's own thread cards) and .chat-messages (one
+   thread's bubbles). Two things happen here, independently:
+
+   1. A thin, mostly-invisible line instead of each browser's chunky
+      default scrollbar. Tinted off --color-text (at low opacity) rather
+      than hard-coded white, so it's a light line against Vibrant/Dark's
+      dark backgrounds and a dark line against Light's pale one — a literal
+      #fff would simply vanish on Light's white surface. Firefox uses
+      scrollbar-width/-color; every other engine uses the ::-webkit-*
+      pseudo-elements.
+
+   2. Which side the scrollbar sits on. Flipped to the left via the classic
+      `direction: rtl` trick — a scroll container's own `direction`
+      decides which edge its scrollbar renders on, independent of the
+      text/layout direction of whatever is inside it, so the immediate
+      children below get `direction: ltr` back to undo the mirroring
+      that would otherwise apply to their content (text alignment, etc.).
+      .thread-list stays left always: the sidebar is a full-width screen
+      on phone and a fixed-width left-hand pane on desktop, so there's no
+      case where "left" is the wrong choice. .chat-messages is the
+      opposite: it starts left (single-pane phone — matches the sidebar
+      it's swapped with) and flips back to the browser-default right via
+      the min-width:900px media query further down, once the two-pane
+      desktop layout puts the sidebar and an open chat side by side and
+      "outer edges" (sidebar-left, chat-right) reads better than both
+      scrollbars sitting on the seam between the two panes. */
+.thread-list,
+.chat-messages {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-text) 30%, transparent)
+    transparent;
+}
+
+.thread-list::-webkit-scrollbar,
+.chat-messages::-webkit-scrollbar {
+  width: 5px;
+}
+
+.thread-list::-webkit-scrollbar-track,
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thread-list::-webkit-scrollbar-thumb,
+.chat-messages::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-text) 30%, transparent);
+  border-radius: 999px;
+}
+
+.thread-list::-webkit-scrollbar-thumb:hover,
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+
+.thread-list {
+  direction: rtl;
+}
+
+.thread-row {
+  direction: ltr;
+}
+
+.chat-messages {
+  direction: rtl;
+}
+
+.chat-bubble-row,
+.chat-empty {
+  direction: ltr;
+}
+
 .sidebar {
   max-width: var(--screen-max);
   /* height, not min-height — same bug/fix as .chat-view (see its comment).
@@ -177,8 +249,16 @@ button:active:not(:disabled) {
      end up scrolling to a stop directly underneath it instead of fully
      clear. The button is 56px tall, anchored 20px up from .sidebar's
      inner edge, so it occupies roughly the bottom 76px of the box —
-     84px leaves a small margin past that. */
-  padding: 0 0 84px;
+     84px leaves a small margin past that.
+
+     Left padding is new, separate from all of that: .thread-list's
+     scrollbar renders flush against its own left edge (direction:rtl,
+     see the shared scrollbar comment near the top of this file), and
+     without this the thread cards — which fill .thread-list edge to
+     edge — would butt right up against it with no breathing room at
+     all. A little padding on the right too, just so the gap isn't
+     lopsided now that the left side has one. */
+  padding: 0 6px 84px 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -186,15 +266,29 @@ button:active:not(:disabled) {
   overflow-y: auto;
 }
 
-/* .thread-item is a <button> (Sidebar wraps each in a plain <li>) so it's
-   keyboard-focusable and semantically a click target, not just styled
-   like one — this resets the default button chrome away first. */
+/* .thread-row is just the <li> — position:relative so the "⋯" button
+   below can sit absolutely-positioned *inside* .thread-item's box (as a
+   sibling overlapping it, not nested inside it: a <button> nested inside
+   another <button> is invalid HTML and gets silently broken apart by the
+   browser) rather than as a separate column that would shrink the card
+   to make room for it. */
+.thread-row {
+  position: relative;
+}
+
+/* .thread-item is a <button> (Sidebar.tsx wraps each in a .thread-row
+   <li>) so it's keyboard-focusable and semantically a click target, not
+   just styled like one — this resets the default button chrome away
+   first. Right padding is wider than the other three sides specifically
+   to leave .thread-more-btn (absolutely positioned over the top-right
+   corner, see below) room to sit without the title/meta text running
+   underneath it. */
 .thread-item {
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 3px;
-  width: 100%;
-  padding: 15px 16px;
+  padding: 15px 46px 15px 16px;
   border: none;
   border-radius: 14px;
   background: var(--color-surface);
@@ -217,6 +311,45 @@ button:active:not(:disabled) {
 .thread-meta {
   font-size: 13px;
   color: var(--color-text-muted);
+}
+
+/* The "⋯" per-thread menu trigger (Sidebar.tsx) — sits inside the card's
+   top-right corner (positioned relative to .thread-row above, which
+   .thread-item fills edge-to-edge, so this lines up as if it belonged to
+   the card itself) rather than as a separate element next to the card.
+   Hidden until revealed: either by :hover (desktop/mouse) or, on phone
+   where there's no hover, by a long press on the card (--revealed, set by
+   Sidebar.tsx's long-press timer) or by its own menu already being open
+   (--menu-open — otherwise it'd vanish out from under a finger that
+   lifted off but left the menu on screen). */
+.thread-more-btn {
+  position: absolute;
+  top: 10px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.thread-more-btn:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.thread-row:hover .thread-more-btn,
+.thread-row--revealed .thread-more-btn,
+.thread-row--menu-open .thread-more-btn {
+  opacity: 1;
 }
 
 .sidebar-new-button {
@@ -428,6 +561,19 @@ button:active:not(:disabled) {
 .btn-primary:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* The one destructive action in the app so far — confirming a thread
+   delete (Sidebar.tsx). --color-danger, not --color-accent: see its
+   definition in index.css for why the two are kept separate. */
+.btn-danger {
+  background: var(--color-danger);
+  color: var(--color-danger-ink);
+  border: none;
+}
+
+.btn-danger:hover {
+  filter: brightness(1.07);
 }
 
 /* — role picker (used twice inside create-thread) — */
@@ -949,6 +1095,14 @@ button:active:not(:disabled) {
     min-height: 100%;
   }
 
+  /* Back to the browser's normal right-hand scrollbar now that the
+     two-pane desktop layout puts .chat-messages next to the sidebar
+     rather than as its own full-width phone screen — see the shared
+     scrollbar comment near the top of this file for the reasoning. */
+  .chat-messages {
+    direction: ltr;
+  }
+
   /* Redundant once the sidebar is permanently visible alongside — on
      mobile it's how you leave the chat screen; here you'd just click a
      different thread (or "+") in the sidebar that's already on screen. */
@@ -1109,4 +1263,110 @@ button:active:not(:disabled) {
    kept literally as an empty spacer rather than inventing copy. */
 .settings-about-spacer {
   min-height: 92px;
+}
+
+/* — per-thread "⋯" menu + its rename/delete dialogs (Sidebar.tsx, M8) —
+   Visually the same "centered overlay panel" shape as Settings above
+   (same fade-in/panel-pop keyframes, same backdrop-to-close behavior),
+   kept as its own set of classes rather than reusing .settings-* directly
+   so the two stay free to diverge later without one screen's tweak
+   accidentally reshaping the other's. Used for three different pieces of
+   content (the Rename/Delete action menu, the rename form, the delete
+   confirmation) via the shared .thread-dialog-overlay/-backdrop/-panel
+   wrapper, distinguished only by what's inside. */
+
+.thread-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 26px;
+}
+
+/* A real <button>, not a styled <div>, so it's reachable/labeled for
+   keyboard and screen-reader users the same way the rest of this file's
+   controls are — the reset rules below just strip the default button
+   chrome back to "an invisible full-screen tap target". */
+.thread-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: rgba(6, 7, 14, 0.62);
+  cursor: default;
+  animation: fade-in 0.2s ease;
+}
+
+.thread-dialog-panel {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  animation: panel-pop 0.26s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* The "⋯" action menu itself is just two rows with no title/body text,
+   so it reads as a tight little list rather than a padded card with a
+   lot of empty space around two buttons. */
+.thread-dialog-panel--menu {
+  gap: 2px;
+  padding: 8px;
+  max-width: 220px;
+}
+
+.thread-dialog-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.thread-dialog-body {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.thread-dialog-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.thread-dialog-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.thread-dialog-menu-item:hover {
+  background: var(--color-bg);
+}
+
+/* The Delete row specifically — same --color-danger used by .btn-danger's
+   confirm button, so the color that means "this deletes something" reads
+   consistently the moment the menu opens, not just once you've already
+   committed to the confirmation dialog. */
+.thread-dialog-menu-item--danger {
+  color: var(--color-danger);
 }

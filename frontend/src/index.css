@@ -33,6 +33,16 @@
   --color-sent-ink: #22091f;
   --color-recv-ink: #04221d;
 
+  /* Reserved for destructive actions only (the thread-delete confirm
+     button, "Delete" in the per-thread "⋯" menu) — kept separate from
+     --color-accent so an accidental accent-color change elsewhere never
+     accidentally dims/brightens the one color that means "this deletes
+     something". Each theme below picks its own shade for the same reason
+     --color-accent varies per theme: a flat #ff0000 red would clash with
+     Vibrant's warm coral or read too harsh on Light's white surface. */
+  --color-danger: #ff5c68;
+  --color-danger-ink: #2a0508;
+
   --font-body: 'Inter', system-ui, sans-serif;
   --font-heading: 'Inter', system-ui, sans-serif;
 }
@@ -66,6 +76,9 @@
   --color-recv: #2a2c36;
   --color-sent-ink: #ffffff;
   --color-recv-ink: #d7d9e2;
+
+  --color-danger: #ff5c68;
+  --color-danger-ink: #2a0508;
 }
 
 :root[data-theme='light'] {
@@ -83,6 +96,12 @@
   --color-recv: #e7e9f1;
   --color-sent-ink: #ffffff;
   --color-recv-ink: #23242c;
+
+  /* A darker, more saturated red than the two dark themes' — Light's white
+     surface needs more contrast/weight from this color to still read as
+     "danger" rather than a washed-out pink. */
+  --color-danger: #e0293b;
+  --color-danger-ink: #ffffff;
 }
 
 * {

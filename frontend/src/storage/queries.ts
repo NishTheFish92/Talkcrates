@@ -198,6 +198,63 @@ export async function createThread(
   });
 }
 
+// Renames a thread. Deliberately does not touch updated_at — that column
+// tracks message activity (see addMessage), not metadata edits, so
+// renaming a thread shouldn't reorder the sidebar the way sending a
+// message does.
+export async function renameThread(
+  threadId: number,
+  title: string,
+): Promise<Thread> {
+  return enqueueWrite(async () => {
+    const database = getDb();
+
+    const threads = queryAll(
+      database,
+      "SELECT id, title, created_at, updated_at FROM threads WHERE id = ?",
+      [threadId],
+      rowToThread,
+    );
+    const thread = threads[0];
+    if (!thread) {
+      throw new NotFoundError(`Thread ${threadId} not found`);
+    }
+
+    database.run("UPDATE threads SET title = ? WHERE id = ?", [
+      title,
+      threadId,
+    ]);
+
+    await persist(database);
+
+    return { ...thread, title };
+  });
+}
+
+// Deletes a thread and, via the schema's ON DELETE CASCADE (see schema.ts
+// and db.ts's `PRAGMA foreign_keys = ON`), everything that references it:
+// both participants and every message in the thread. Nothing else in this
+// file has to delete those rows itself.
+export async function deleteThread(threadId: number): Promise<void> {
+  return enqueueWrite(async () => {
+    const database = getDb();
+
+    const threads = queryAll(
+      database,
+      "SELECT id FROM threads WHERE id = ?",
+      [threadId],
+      (row) => row.id as number,
+    );
+    if (threads.length === 0) {
+      throw new NotFoundError(`Thread ${threadId} not found`);
+    }
+
+    database.run("DELETE FROM threads WHERE id = ?", [threadId]);
+
+    await persist(database);
+  });
+}
+
 // Adds one message and bumps the thread's updatedAt (so it jumps to the
 // top of the sidebar's most-recently-active ordering). Validates that
 // participantId actually belongs to threadId first — without this check, a
