@@ -7,8 +7,10 @@ import type { Thread } from "../storage";
 
 interface SidebarProps {
   threads: Thread[];
+  name: string;
   onSelectThread: (threadId: number) => void;
   onNewThread: () => void;
+  onOpenSettings: () => void;
 }
 
 // Turns a unix-seconds timestamp into a short "how long ago" label, e.g.
@@ -28,15 +30,33 @@ function timeAgo(unixSeconds: number): string {
   return `${diffDays}d ago`;
 }
 
-export function Sidebar({ threads, onSelectThread, onNewThread }: SidebarProps) {
+export function Sidebar({
+  threads,
+  name,
+  onSelectThread,
+  onNewThread,
+  onOpenSettings,
+}: SidebarProps) {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
         <h1>Chats</h1>
+        <button
+          type="button"
+          className="sidebar-settings-button"
+          onClick={onOpenSettings}
+          aria-label="Settings"
+        >
+          ☰
+        </button>
       </div>
       {threads.length === 0 ? (
         <div className="sidebar-empty">
-          <p>No chats yet.</p>
+          <p className="sidebar-empty-message">
+            {name ? `Hi ${name},` : "Hi there,"}
+            <br />
+            start a new chat
+          </p>
           <button
             type="button"
             className="sidebar-new-button sidebar-new-button--empty"

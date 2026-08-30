@@ -15,13 +15,17 @@
 
 import { useEffect, useState } from "react";
 import { createThread, getThreads } from "../storage";
-import type { Thread } from "../storage";
+import type { Config, Thread } from "../storage";
 import { Sidebar } from "./Sidebar";
 import { CreateThread } from "./CreateThread";
 import { ChatView } from "./ChatView";
+import { Settings } from "./Settings";
 
 interface HomeProps {
   name: string;
+  onNameChange: (name: string) => void;
+  theme: Config["theme"];
+  onThemeChange: (theme: Config["theme"]) => void;
 }
 
 type View =
@@ -34,9 +38,13 @@ type LoadStatus =
   | { kind: "ready"; threads: Thread[] }
   | { kind: "error"; message: string };
 
-export function Home({ name }: HomeProps) {
+export function Home({ name, onNameChange, theme, onThemeChange }: HomeProps) {
   const [status, setStatus] = useState<LoadStatus>({ kind: "loading" });
   const [view, setView] = useState<View>({ kind: "list" });
+  // The settings overlay floats above whichever view is active (list,
+  // create, or an open thread) rather than being one of the View kinds
+  // above — it's a modal, not a screen you navigate to and from.
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   async function reloadThreads() {
     try {
@@ -78,8 +86,10 @@ export function Home({ name }: HomeProps) {
       <div className="app-sidebar-pane">
         <Sidebar
           threads={status.threads}
+          name={name}
           onSelectThread={(threadId) => setView({ kind: "thread", threadId })}
           onNewThread={() => setView({ kind: "create" })}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
       </div>
 
@@ -118,6 +128,16 @@ export function Home({ name }: HomeProps) {
           </div>
         )}
       </div>
+
+      {settingsOpen && (
+        <Settings
+          name={name}
+          onNameChange={onNameChange}
+          theme={theme}
+          onThemeChange={onThemeChange}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   );
 }

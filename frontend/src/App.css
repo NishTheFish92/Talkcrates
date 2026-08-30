@@ -56,10 +56,17 @@
 button,
 .thread-item,
 .sidebar-new-button,
+.sidebar-settings-button,
 .name-capture-submit,
 .composer-send,
 .chat-back,
-.chat-swap {
+.chat-swap,
+.theme-swatch-circle,
+.session-choice-primary,
+.session-choice-secondary,
+.settings-row,
+.settings-close,
+.settings-back {
   transition:
     transform 120ms ease,
     background-color 150ms ease,
@@ -98,6 +105,9 @@ button:active:not(:disabled) {
 }
 
 .sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 20px;
 }
 
@@ -106,14 +116,49 @@ button:active:not(:disabled) {
   letter-spacing: -0.02em;
 }
 
+/* Gear icon (☰, the wireframe's 3-line icon) that opens the Settings
+   overlay — see Home.tsx/Settings.tsx. Same 44px icon-button shape as
+   .chat-back/.chat-swap. */
+.sidebar-settings-button {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.sidebar-settings-button:hover {
+  background: var(--color-surface);
+}
+
 .sidebar-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 22px;
-  color: var(--color-text-muted);
   text-align: center;
   padding: 64px 0;
+}
+
+/* The empty-state greeting itself is full-strength text (not muted) and
+   heading-sized, matching the wireframe's "Hi {name}, start a new chat" —
+   .sidebar-empty above used to style this text directly when it was just
+   "No chats yet.", so the muted/small styling moved out to here. */
+.sidebar-empty-message {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
 }
 
 .thread-list {
@@ -162,7 +207,7 @@ button:active:not(:disabled) {
   border: none;
   border-radius: 50%;
   background: var(--color-accent);
-  color: #141528;
+  color: var(--color-accent-ink);
   font-size: 26px;
   line-height: 1;
   cursor: pointer;
@@ -261,7 +306,7 @@ button:active:not(:disabled) {
   border-radius: 50%;
   border: none;
   background: var(--color-accent);
-  color: #141528;
+  color: var(--color-accent-ink);
   font-size: 20px;
   cursor: pointer;
 }
@@ -356,7 +401,7 @@ button:active:not(:disabled) {
 
 .btn-primary {
   background: var(--color-accent);
-  color: #141528;
+  color: var(--color-accent-ink);
   border: none;
 }
 
@@ -407,6 +452,141 @@ button:active:not(:disabled) {
 .role-picker-input:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+/* — theme picker (used on both session-choice and Settings'
+   Personalization tab — see ThemePicker.tsx) — */
+
+.theme-picker {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.theme-swatch {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.theme-swatch-circle {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  transition: box-shadow 0.2s ease;
+}
+
+/* The ring for the selected swatch — a gap of the page background, then a
+   ring of the *current* accent color, so it's clearly visible against
+   any of the three themes rather than one fixed color. */
+.theme-swatch--selected .theme-swatch-circle {
+  box-shadow:
+    0 0 0 3px var(--color-bg),
+    0 0 0 6px var(--color-accent);
+}
+
+.theme-swatch-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.theme-swatch--selected .theme-swatch-label {
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.theme-picker--large .theme-swatch-circle {
+  max-width: 74px;
+}
+
+.theme-picker--small .theme-swatch-circle {
+  max-width: 62px;
+}
+
+.theme-picker--small .theme-swatch-label {
+  font-size: 13px;
+}
+
+/* — session choice (wireframe screen 2, "What would you like to do?") —
+   Shown once, before a name is known — see App.tsx's "selecting" status. */
+
+.session-choice {
+  min-height: 100svh;
+  max-width: var(--screen-max);
+  margin: 0 auto;
+  padding: 40px 28px 32px;
+  display: flex;
+  flex-direction: column;
+  animation: screen-in 0.32s ease;
+}
+
+.session-choice h1 {
+  font-size: 34px;
+  line-height: 1.14;
+  letter-spacing: -0.02em;
+  margin: 0 0 30px;
+}
+
+.session-choice-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.session-choice-primary,
+.session-choice-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 56px;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 16.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.session-choice-primary {
+  border: none;
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.session-choice-primary:hover {
+  filter: brightness(1.07);
+}
+
+.session-choice-secondary {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+}
+
+.session-choice-secondary:hover {
+  border-color: var(--color-text-muted);
+  background: var(--color-surface);
+}
+
+.session-choice-theme {
+  margin-top: auto;
+  padding-top: 32px;
+}
+
+.session-choice-theme-label {
+  font-size: 12px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 16px;
 }
 
 /* — chat view (M6) + composer (M7) — */
@@ -569,7 +749,7 @@ button:active:not(:disabled) {
   border-radius: 50%;
   border: none;
   background: var(--color-accent);
-  color: #141528;
+  color: var(--color-accent-ink);
   font-size: 18px;
   cursor: pointer;
 }
@@ -672,4 +852,158 @@ button:active:not(:disabled) {
   .chat-back {
     display: none;
   }
+}
+
+/* — settings overlay (Sidebar's gear icon → Settings.tsx) —
+   position:fixed so it covers the whole viewport regardless of which pane
+   layout is active (single-pane phone or the two-pane desktop shell). */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes panel-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.93);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 26px;
+}
+
+.settings-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 7, 14, 0.62);
+  animation: fade-in 0.2s ease;
+}
+
+.settings-panel {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  max-height: calc(100svh - 52px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  animation: panel-pop 0.26s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.settings-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.settings-close,
+.settings-back {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.settings-close {
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+}
+
+.settings-back {
+  width: 38px;
+  height: 38px;
+  font-size: 18px;
+}
+
+.settings-close:hover,
+.settings-back:hover {
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-row:hover {
+  background: var(--color-bg);
+}
+
+.settings-row-chevron {
+  color: var(--color-text-muted);
+}
+
+.settings-back-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.settings-subtitle {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.settings-panel .field {
+  margin-bottom: 20px;
+}
+
+.settings-panel .field:last-child {
+  margin-bottom: 0;
+}
+
+/* The wireframe's About tab has no content yet, just reserved space —
+   kept literally as an empty spacer rather than inventing copy. */
+.settings-about-spacer {
+  min-height: 92px;
 }

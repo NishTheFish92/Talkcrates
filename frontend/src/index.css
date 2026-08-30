@@ -13,6 +13,12 @@
   --color-text: #e9e9ed;
   --color-text-muted: #9397ab;
   --color-accent: #ff6e7f;
+  /* Ink color for text/icons sitting *on top of* --color-accent (buttons
+     like .btn-primary, .composer-send). Vibrant's coral is light enough
+     that dark text reads better on it; Light/Dark's indigo below is the
+     opposite, so each theme picks whichever actually contrasts instead of
+     every button guessing one fixed color. */
+  --color-accent-ink: #141528;
   --color-border: #3f424d;
 
   /* The two per-participant bubble colors (M6 will use these directly on
@@ -29,6 +35,54 @@
 
   --font-body: 'Inter', system-ui, sans-serif;
   --font-heading: 'Inter', system-ui, sans-serif;
+}
+
+/* Dark and Light below are the other two options from the wireframe's
+   theme picker (storage/config.ts's `theme` field — "vibrant" is the
+   :root default above). App.tsx sets `data-theme` on <html> to whichever
+   one is active; when it's "vibrant" neither block below matches anything
+   and the :root values above just keep applying as-is.
+
+   Dark keeps Vibrant's dark background but swaps its three competing
+   bubble hues (coral/orange/purple) for one calmer indigo accent used
+   everywhere — a plainer "dark mode" alongside Vibrant's busier one.
+   Light is the same indigo accent on a near-white background instead —
+   the pairing is deliberate: it makes the two feel like one consistent
+   "plain" theme with a light/dark switch, distinct from Vibrant. Both
+   picked for being ordinary, easy-to-read UI colors — nothing that reads
+   as a strong opinion the way Vibrant's palette does. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #14151a;
+  --color-surface: #1e1f26;
+  --color-text: #e8e9ee;
+  --color-text-muted: #8b8d9a;
+  --color-accent: #7c6cf0;
+  --color-accent-ink: #ffffff;
+  --color-border: #33343d;
+
+  --color-sent: #7c6cf0;
+  --color-recv: #2a2c36;
+  --color-sent-ink: #ffffff;
+  --color-recv-ink: #d7d9e2;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-bg: #f5f5f8;
+  --color-surface: #ffffff;
+  --color-text: #1a1b23;
+  --color-text-muted: #6c6f7e;
+  --color-accent: #6c5ce7;
+  --color-accent-ink: #ffffff;
+  --color-border: #e1e2ea;
+
+  --color-sent: #6c5ce7;
+  --color-recv: #e7e9f1;
+  --color-sent-ink: #ffffff;
+  --color-recv-ink: #23242c;
 }
 
 * {
