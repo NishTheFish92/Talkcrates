@@ -687,26 +687,60 @@ button:active:not(:disabled) {
   line-height: 1.5;
   /* Position sliding on POV swap is driven by ChatView.tsx's FLIP effect
      (measures each bubble's position before the swap, then animates from
-     there back to its new natural position via inline transform/transition
-     — that's why background/color get their own transition here too,
-     so the sent/recv color swap cross-fades alongside the slide instead
-     of snapping instantly). will-change hints the browser this element's
-     transform is about to be animated, matching the wireframe's own use
-     of will-change for the same reason. */
+     there back to its new natural position via el.animate() — deliberately
+     NOT by writing el.style.transition, which would replace the transition
+     declared below and make the color snap; see the comment in ChatView.tsx
+     for why). The color change rides alongside that slide as a slow "bleed"
+     — the other color seeping across the bubble — not a flat crossfade.
+
+     How: background-image is one strip painted at THREE times the bubble's
+     width (background-size: 300%), laid out as
+        [ solid recv | long soft recv->sent ramp | solid sent ]
+     each third the bubble's width. Only one third is ever visible at a
+     time, and background-position slides which third that is:
+       - at 0%   the window sits on the left third   -> solid recv
+       - at 100% the window sits on the right third  -> solid sent
+       - in between, the window covers the middle third, so the ENTIRE
+         bubble is the soft purple->orange blend at once
+     That middle state is what makes it read as a bleed: at rest each
+     bubble is a flat color (a plateau), and mid-swap the whole bubble
+     softens into a gradient before resolving to the other flat color.
+     A hard 50/50 stop here would instead sweep a visible edge across the
+     bubble — a wipe, not a bleed.
+
+     Timing is deliberately slower than the 0.5s FLIP slide and uses
+     ease-in-out, so the color keeps seeping after the bubble has settled
+     into its new side instead of racing the movement.
+
+     will-change hints the browser both properties are about to animate,
+     matching the wireframe's own use of will-change. */
+  background-image: linear-gradient(
+    to right,
+    var(--color-recv) 0%,
+    var(--color-recv) 33.33%,
+    var(--color-sent) 66.67%,
+    var(--color-sent) 100%
+  );
+  background-size: 300% 100%;
   transition:
-    background-color 0.3s ease,
-    color 0.3s ease;
-  will-change: transform;
+    background-position 1.45s cubic-bezier(0.45, 0.05, 0.35, 1),
+    color 1.45s ease-in-out;
+  will-change: transform, background-position;
 }
 
 .chat-bubble--sent {
-  background: var(--color-sent);
+  /* Right third of the strip = solid "sent" (orange). Transitioning from
+     --recv's 0%, the window travels across the soft middle ramp, so
+     orange seeps in from the bubble's right edge and gradually saturates
+     the whole thing. */
+  background-position: 100% 0;
   color: var(--color-sent-ink);
   border-radius: 22px 22px 8px 22px;
 }
 
 .chat-bubble--recv {
-  background: var(--color-recv);
+  /* Left third = solid "recv" (purple). Exact mirror of --sent above. */
+  background-position: 0% 0;
   color: var(--color-recv-ink);
   border-radius: 22px 22px 22px 8px;
 }

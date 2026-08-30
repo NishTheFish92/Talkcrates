@@ -85,10 +85,32 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
   // (not useEffect) specifically, because it fires synchronously after
   // the DOM updates but before the browser paints, so the "jump to the
   // old position" step below never actually becomes visible on screen.
+  //
+  // "Invert, Play" is done with el.animate() (the Web Animations API)
+  // rather than by writing el.style.transition/transform, and that choice
+  // matters for more than tidiness. Inline styles outrank the stylesheet,
+  // so setting el.style.transition here would replace — not extend — the
+  // `transition` that App.css puts on .chat-bubble. That stylesheet
+  // transition is what drives the slow color "bleed" (background-position)
+  // when the sent/recv class flips, so clobbering it made the color snap
+  // instantly while only the slide animated. el.animate() runs the
+  // transform on a separate track and never touches style.transition, so
+  // the slide and the bleed both run, independently and at their own
+  // durations.
+  //
+  // It also drops the old `transition:none` + forced-reflow dance: the
+  // keyframes below state the start and end positions outright, so there
+  // is no need to paint an intermediate "old position" state first.
   useLayoutEffect(() => {
     const before = pendingRects.current;
     if (!before) return;
     pendingRects.current = null;
+
+    // App.css's prefers-reduced-motion block collapses CSS transitions and
+    // animations to ~0s, but a media query can't reach an el.animate()
+    // call — so that setting has to be honored here explicitly, or the
+    // slide would keep playing for people who asked for less motion.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     bubbleRefs.current.forEach((el, messageId) => {
       const oldRect = before.get(messageId);
@@ -97,16 +119,13 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
       const dx = oldRect.left - newRect.left;
       if (dx === 0) return;
 
-      // Invert: jump back to the old position with no transition.
-      el.style.transition = "none";
-      el.style.transform = `translateX(${dx}px)`;
-      // Force the browser to apply the above before the next line, or it
-      // would just merge both style changes into one and never render
-      // the "old position" starting point at all.
-      void el.offsetWidth;
-      // Play: animate from that offset back to the natural position.
-      el.style.transition = "transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1)";
-      el.style.transform = "translateX(0)";
+      // Animate from where the bubble used to be back to where the new
+      // layout already put it. Same duration/easing the inline-style
+      // version used, so the movement itself is unchanged.
+      el.animate(
+        [{ transform: `translateX(${dx}px)` }, { transform: "translateX(0)" }],
+        { duration: 500, easing: "cubic-bezier(0.22, 0.61, 0.36, 1)" },
+      );
     });
   }, [pov]);
 
