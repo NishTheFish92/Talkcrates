@@ -30,13 +30,19 @@ let SQL: SqlJsStatic | undefined;
 // `locateFile` tells sql.js where to find its .wasm binary (the engine
 // itself ships as two files: a small JS loader, bundled normally via the
 // `sql.js` import above, and a separate .wasm file fetched at runtime). It
-// defaults to the app's real answer — `/sql-wasm.wasm`, which Vite serves
-// as-is because we copied the file into public/ — but takes a parameter
-// instead of hardcoding that, so a Node scratch script (which has no dev
-// server to fetch a URL from) can point it at the file's actual path on
-// disk instead. App code never needs to pass this; only scripts do.
+// defaults to the app's real answer — Vite serves the file as-is because we
+// copied it into public/, at whatever the app's base URL is (`/` normally,
+// but `/talkcrates/` on GitHub Pages, where the app isn't hosted at the
+// domain root — see vite.config.ts's `base`). `import.meta.env.BASE_URL` is
+// Vite's built-in env var that always reflects that `base` setting, so this
+// doesn't need to hardcode either path. Takes a parameter instead of just
+// inlining that, so a Node scratch script (which has no dev server to fetch
+// a URL from, and no Vite env vars either) can point it at the file's
+// actual path on disk instead. App code never needs to pass this; only
+// scripts do.
 export async function initDb(
-  locateFile: (file: string) => string = (file) => `/${file}`,
+  locateFile: (file: string) => string = (file) =>
+    `${import.meta.env.BASE_URL}${file}`,
 ): Promise<void> {
   SQL = await initSqlJs({ locateFile });
 
