@@ -223,6 +223,15 @@ button:active:not(:disabled) {
   padding: 64px 0;
 }
 
+/* Pairs the empty-state "+" with the export button next to it — a plain
+   row, vertically centered so the two buttons' different sizes (72px vs.
+   56px) still line up on their shared middle rather than their tops. */
+.sidebar-empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 /* The empty-state greeting itself is full-strength text (not muted) and
    heading-sized, matching the wireframe's "Hi {name}, start a new chat" —
    .sidebar-empty above used to style this text directly when it was just
@@ -382,6 +391,52 @@ button:active:not(:disabled) {
   bottom: 20px;
   width: 56px;
   height: 56px;
+}
+
+/* Export's icon button — same circular shape/size as .sidebar-new-button
+   in each context, but outlined rather than accent-filled, so "+" still
+   reads as the one primary action while export sits right beside it
+   instead of behind a menu. */
+.sidebar-export-button {
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sidebar-export-button:hover {
+  border-color: var(--color-text-muted);
+}
+
+.sidebar-export-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.sidebar-export-button--empty {
+  width: 56px;
+  height: 56px;
+}
+
+.sidebar-export-button--floating {
+  position: absolute;
+  /* Directly to the left of .sidebar-new-button--floating: that button is
+     56px wide starting at right:20px, so its left edge sits at 76px from
+     the sidebar's edge — 12px more clears a gap between the two. */
+  right: 88px;
+  bottom: 20px;
+  width: 56px;
+  height: 56px;
+}
+
+.sidebar-export-error {
+  margin: 12px 0 0;
+  font-size: 13px;
+  text-align: center;
+  color: var(--color-accent);
 }
 
 .status-message {
@@ -736,6 +791,18 @@ button:active:not(:disabled) {
 .session-choice-secondary:hover {
   border-color: var(--color-text-muted);
   background: var(--color-surface);
+}
+
+.session-choice-primary:disabled,
+.session-choice-secondary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.session-choice-error {
+  margin: 14px 0 0;
+  font-size: 14px;
+  color: var(--color-accent);
 }
 
 .session-choice-theme {
@@ -1233,8 +1300,19 @@ button:active:not(:disabled) {
   background: var(--color-bg);
 }
 
+.settings-row:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .settings-row-chevron {
   color: var(--color-text-muted);
+}
+
+.settings-error {
+  margin: 4px 14px 8px;
+  font-size: 13px;
+  color: var(--color-accent);
 }
 
 .settings-back-row {

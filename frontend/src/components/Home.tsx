@@ -14,8 +14,18 @@
 // (ChatGPT/Claude-style) — see the media query in App.css.
 
 import { useEffect, useState } from "react";
-import { createThread, deleteThread, getThreads, renameThread } from "../storage";
+import {
+  createThread,
+  deleteThread,
+  exportBytes,
+  getConfig,
+  getThreads,
+  importBytes,
+  renameThread,
+} from "../storage";
 import type { Config, Thread } from "../storage";
+import { buildBackupZip, parseBackupZip } from "../backup/zip";
+import { downloadBytes } from "../backup/browserFile";
 import { Sidebar } from "./Sidebar";
 import { CreateThread } from "./CreateThread";
 import { ChatView } from "./ChatView";
@@ -106,6 +116,45 @@ export function Home({ name, onNameChange, theme, onThemeChange }: HomeProps) {
     }
   }
 
+  // Sidebar's export button — gathers the two pieces a backup needs (the
+  // SQLite bytes and the config object), zips them, and hands the result
+  // to the browser as a download. Errors (any of these three steps) are
+  // deliberately left to propagate rather than caught here — Sidebar's
+  // own handler catches them and shows the message inline, since a
+  // failed export shouldn't blow away the rest of Home the way
+  // handleRenameThread/handleDeleteThread's errors do above.
+  async function handleExport() {
+    const [sqliteBytes, config] = await Promise.all([
+      exportBytes(),
+      getConfig(),
+    ]);
+    const zipBytes = await buildBackupZip(sqliteBytes, config);
+    const date = new Date().toISOString().slice(0, 10);
+    downloadBytes(zipBytes, `talkcrates-backup-${date}.zip`, "application/zip");
+  }
+
+  // Settings' "Import" — the counterpart to handleImportSession in
+  // App.tsx, for an *existing* session rather than a brand new one. The
+  // overwrite-confirm dialog (this path can actually destroy data,
+  // unlike App.tsx's) lives in Settings.tsx itself, right before it calls
+  // this — by the time this runs, the user has already agreed.
+  //
+  // onNameChange/onThemeChange are the same callbacks Settings' own
+  // Personalization tab uses to edit the name/theme one field at a time
+  // (they already persist to config via App.tsx) — reused here rather
+  // than duplicating a "write the whole config" storage call, since
+  // calling both restores every field a Config has.
+  async function handleImportZip(zipBytes: Uint8Array) {
+    const { sqliteBytes, config } = await parseBackupZip(zipBytes);
+    await importBytes(sqliteBytes);
+    onNameChange(config.name);
+    onThemeChange(config.theme);
+    await reloadThreads();
+    // The view may be pointing at a thread (or the create-thread form)
+    // that no longer means anything post-import — back to a plain list.
+    setView({ kind: "list" });
+  }
+
   if (status.kind === "loading") {
     return <div className="status-message">Loading your chats…</div>;
   }
@@ -133,6 +182,7 @@ export function Home({ name, onNameChange, theme, onThemeChange }: HomeProps) {
           onOpenSettings={() => setSettingsOpen(true)}
           onRenameThread={handleRenameThread}
           onDeleteThread={handleDeleteThread}
+          onExport={handleExport}
         />
       </div>
 
@@ -179,6 +229,7 @@ export function Home({ name, onNameChange, theme, onThemeChange }: HomeProps) {
           theme={theme}
           onThemeChange={onThemeChange}
           onClose={() => setSettingsOpen(false)}
+          onImportZip={handleImportZip}
         />
       )}
     </div>

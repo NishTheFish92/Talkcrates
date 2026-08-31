@@ -5,8 +5,9 @@
 // that — the actual thread list and navigation between its screens.
 
 import { useEffect, useState } from "react";
-import { getConfig, init, updateConfig } from "./storage";
+import { getConfig, importBytes, init, updateConfig } from "./storage";
 import type { Config } from "./storage";
+import { parseBackupZip } from "./backup/zip";
 import { SessionChoice } from "./components/SessionChoice";
 import { NameCapture } from "./components/NameCapture";
 import { Home } from "./components/Home";
@@ -38,6 +39,12 @@ function App() {
   // the page needs to render in the right theme even before a name/Home
   // is reached at all.
   const [theme, setTheme] = useState<Config["theme"]>("vibrant");
+  // Only ever set by a failed "Import Existing Session" attempt on
+  // SessionChoice — shown there so the user can see what went wrong and
+  // try a different file, without leaving that screen or hitting the
+  // full-page error state (that's reserved for storage itself being
+  // broken, not "picked the wrong file").
+  const [importError, setImportError] = useState<string | null>(null);
 
   // Runs once when App first mounts (empty dependency array). init() loads
   // the sql.js engine and restores any saved IndexedDB snapshot; getConfig()
@@ -110,13 +117,35 @@ function App() {
     setStatus({ kind: "needsName" });
   }
 
-  // SessionChoice's "Import Existing Session" — see SessionChoice.tsx's
-  // comment. No real import yet, so this just proceeds into the app the
-  // way a real import eventually will (skipping name-capture), without
-  // actually restoring anything. config.name is still "" at this point,
-  // and Home/Sidebar already render sensibly with an empty name.
-  function handleImportDummy() {
-    setStatus({ kind: "ready", name: "" });
+  // SessionChoice's "Import Existing Session" — `zipBytes` is the raw
+  // uploaded file, already read off disk by SessionChoice but not yet
+  // looked at. Unzipping (parseBackupZip) and validating/swapping in the
+  // SQLite bytes (importBytes) can each fail on a bad file, so both are
+  // inside the same try/catch: either failure means "show an error and
+  // stay on this screen," never "proceed with half-imported data."
+  //
+  // No overwrite-confirm dialog here — unlike Settings' import (Home.tsx),
+  // this path only ever runs while status.kind is "selecting", which only
+  // happens when config.name is empty (see the load() effect below) — i.e.
+  // always into a blank session with nothing to lose. See CLAUDE.md ->
+  // "Data storage & privacy" for why the two entry points differ here.
+  async function handleImportSession(zipBytes: Uint8Array) {
+    setImportError(null);
+    try {
+      const { sqliteBytes, config } = await parseBackupZip(zipBytes);
+      await importBytes(sqliteBytes);
+      // Restore the whole config (not just name) so theme comes back too,
+      // exactly as it was in the backup.
+      await updateConfig({ name: config.name, theme: config.theme });
+      setTheme(config.theme);
+      setStatus({ kind: "ready", name: config.name });
+    } catch (err) {
+      setImportError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong importing that file.",
+      );
+    }
   }
 
   // Called once the user submits the name-capture form — the tail end of
@@ -187,7 +216,8 @@ function App() {
         theme={theme}
         onThemeChange={handleThemeChange}
         onNewSession={handleStartNewSession}
-        onImport={handleImportDummy}
+        onImport={handleImportSession}
+        importError={importError}
       />
     );
   }

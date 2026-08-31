@@ -22,7 +22,10 @@ const DEFAULT_CONFIG: Config = {
   theme: "vibrant",
 };
 
-const VALID_THEMES: Config["theme"][] = ["vibrant", "light", "dark"];
+// Exported so backup/zip.ts can validate an imported config.json against
+// the same list, instead of a second copy of "what counts as a theme"
+// drifting out of sync with this one.
+export const VALID_THEMES: Config["theme"][] = ["vibrant", "light", "dark"];
 
 // Reads the saved config. Falls back to DEFAULT_CONFIG if nothing's been
 // saved yet (a first-time user — the normal case, not an error) or if

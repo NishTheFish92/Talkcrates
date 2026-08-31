@@ -18,7 +18,7 @@ A chat-interface web app for structured self-dialogue and introspection. Instead
 - Web application, responsive — must work well on both desktop and mobile. Native apps are out of scope for v1 (see Deferred: Capacitor mobile-app wrap).
 
 **Audience & accounts**
-- Built as a multi-user product from the start (architecture should assume multiple accounts eventually), but real auth/account system is **post-MVP**. For MVP, the password-protected zip file *is* the user's identity/data — see Data storage & privacy.
+- Built as a multi-user product from the start (architecture should assume multiple accounts eventually), but real auth/account system is **post-MVP**. For MVP, the zip file *is* the user's identity/data — see Data storage & privacy.
 
 **AI/LLM involvement**
 - Zero AI in v1. Pure self-chat UI over user-typed content. No AI-generated titles, summaries, or insights in the initial version.
@@ -26,8 +26,8 @@ A chat-interface web app for structured self-dialogue and introspection. Instead
 **Data storage & privacy (MVP, decided)**
 - Zip-based, user-owned persistence. No server-side database stores conversation content, and the backend never sees plaintext content.
 - Working conversation data lives client-side only (e.g. browser localStorage/IndexedDB as an ephemeral in-session cache) while the app is open.
-- **Export**: user downloads their data as a password-protected (encrypted) zip file whenever they want a durable copy.
-- **Import**: user uploads that zip to restore everything immediately, client-side.
+- **Export**: user downloads their data as a zip file whenever they want a durable copy. **Encryption deferred (decided 2026-08-31):** the zip is plain/unencrypted for now — password protection was cut to keep the export/import round-trip frictionless, since people are moving the file between their own personal systems. See "Deferred" for re-adding it later.
+- **Import**: user uploads that zip to restore everything immediately, client-side. Reachable in two places (decided 2026-08-31): SessionChoice (pre-onboarding — always importing into an empty session, so nothing to confirm) and Settings (an existing session — importing there replaces current data, so this is the one path that confirms before proceeding; matches the wireframe's always-present "Export Chats" button getting an Import counterpart).
 - This zip file effectively *is* the user's identity/data for MVP — no login/auth needed (see Audience & accounts).
 - Optionally adding real server-side persistent storage later (e.g. a "let the server keep my data" mode) is a distinct future phase requiring its own dedicated security/privacy deliberation — not to be casually bolted onto this model.
 
@@ -45,7 +45,7 @@ A chat-interface web app for structured self-dialogue and introspection. Instead
 - **Client-side engine: sql.js (decided)** — SQLite compiled to WASM, in-memory, no built-in persistence — over OPFS-backed wa-sqlite, because OPFS needs a Web Worker and has rough edges on Safari/iOS, which this app must support well. All access goes through an **async-first interface** (`getThreads()`, `addMessage()`, `exportBytes()`, `importBytes()` — all return Promises) so moving to a Worker/different engine later doesn't force a rewrite across the UI.
 - **IndexedDB write-through cache (decided):** every mutating call (`addMessage()`, `createThread()`, etc.) persists before resolving — mutate sql.js → `export()` → write bytes to IndexedDB, all inside one awaited chain. No debouncing/timers; writes are cheap at this app's scale and correctness matters more than write count. This is the "ephemeral in-session cache" mentioned above — not the durable copy, which is still the zip.
 - **Writes are serialized via an internal queue** in the storage layer (each call chains onto the previous call's promise) so save order always matches call order, regardless of how close together calls happen — prevents a slow write from overwriting a newer one.
-- **Export/import is 100% client-side — no FastAPI involvement, no network call.** Export is manual/user-triggered only (matches wireframe's always-present "Export Chats" button). The zip is built, encrypted, decrypted, and parsed entirely in-browser. Zip encryption must be real **AES-256** (e.g. `zip.js`), not legacy ZipCrypto.
+- **Export/import is 100% client-side — no FastAPI involvement, no network call.** Export is manual/user-triggered only (matches wireframe's always-present "Export Chats" button; Settings also gets an "Import" action for an existing session — see "Data storage & privacy"). The zip is built and parsed entirely in-browser using `zip.js`, currently **unencrypted** — see "Deferred" for the AES-256 requirement that applies whenever encryption comes back.
 
 ### SQLite schema (decided, 2026-08-10)
 
@@ -96,7 +96,7 @@ Small per-user settings that aren't conversation data — currently just the use
 - `name` — the user's own name, captured during onboarding (see "Preset defaults" above — `{Name}` / `Rational {Name}` are computed from this at render time). Defaults to `""` until onboarding sets it (onboarding itself isn't in the build plan yet — see `../iterations.MD`).
 - `theme` — one of `"vibrant" | "light" | "dark"`, matching the wireframe's theme picker (onboarding + settings screens). `"vibrant"` is the default and the only one actually styled for now; `"light"`/`"dark"` are picked up as a distinct later feature (the picker UI + actually switching tokens at runtime), not built alongside the sidebar/chat work.
 - **Ephemeral in-session cache: `localStorage`, not IndexedDB.** The DB uses IndexedDB because sql.js needs to read/write it as an opaque byte blob through an async API. Config is a handful of primitives with no such requirement — `localStorage` is simpler (synchronous, no schema) and a better fit for something this small. Both are still just the *ephemeral* cache; the zip remains the only durable copy, per the storage model above.
-- **Zip layout**: `config.json` sits alongside `talkcrates.sqlite` in the export zip, under the same AES-256 encryption — not a separate unencrypted file.
+- **Zip layout**: `config.json` sits alongside `talkcrates.sqlite` in the export zip, as two entries in the same zip file (currently unencrypted, see "Deferred").
 
 ### Storage-layer interface (decided, 2026-08-10)
 
@@ -120,7 +120,7 @@ interface Config { version: number; name: string; theme: "vibrant" | "light" | "
 - `deleteThread(threadId): Promise<void>` — cascades to participants/messages via `ON DELETE CASCADE`.
 - `updateParticipantRole(participantId, role): Promise<Participant>` — role is editable anytime; since it's not duplicated per-message, past messages just inherit the new label.
 - `addMessage(threadId, participantId, content): Promise<Message>` — bumps the thread's `updatedAt`; validates `participantId` actually belongs to `threadId`.
-- `exportBytes(): Promise<Uint8Array>` — raw serialized SQLite file, handed to zip.js for AES-256 encryption one layer up (not the zip itself).
+- `exportBytes(): Promise<Uint8Array>` — raw serialized SQLite file, handed to zip.js one layer up to be bundled into the export zip alongside `config.json` (currently unencrypted, see "Deferred").
 - `importBytes(bytes): Promise<void>` — takes already-decrypted bytes, validates it's a real SQLite file with the expected tables before swapping it in.
 
 **Errors**: typed hierarchy, not bare strings — `StorageError` (base: I/O, serialization, not-initialized) → `NotFoundError`, `ValidationError`, `ImportError`. Every function above rejects with one of these.
@@ -143,6 +143,7 @@ interface Config { version: number; name: string; theme: "vibrant" | "light" | "
 - **Auth / multi-tenant accounts**: after MVP.
 - **Server-side persistent storage** (e.g. "let the server keep my data" instead of zip-only): a distinct future phase requiring its own dedicated security/privacy deliberation before design — not decided now.
 - **AI extras**: not in v1; possible future addition (auto titles/summaries/insights), same priority tier as group chat — nice-to-have, not core.
+- **Zip password protection / AES-256 encryption (deferred 2026-08-31):** v1 export/import zips are plain/unencrypted, cut to keep the round-trip frictionless on the assumption that people are moving the file between their own personal systems. Revisit if/when that assumption stops holding (e.g. multi-user accounts, less-trusted transfer paths). When it's added, it must be real AES-256 (`zip.js` supports this natively), never legacy ZipCrypto.
 - **Capacitor mobile-app wrap (decided direction, post-MVP):** after the web MVP is solid, wrap the same built web app with Capacitor to produce real Android/iOS app-store binaries — no UI rewrite, no Flutter/Kotlin port; the existing React bundle runs inside a native WebView shell as-is. The motivation is storage durability, not UI: an installed app's local storage persists like any other app's data on the device (cleared only on uninstall), unlike a browser tab's storage, which can be evicted or cleared by the user/OS. Web (plain browser, no install) stays the primary, fully-supported MVP target — export/import there remains effectively mandatory, since browser storage isn't reliably durable. Only once wrapped does export/import get to relax from *mandatory* (the user's only real backup) to *optional* (manual backup/portability, e.g. moving data to another device) — the underlying storage-layer code (sql.js + IndexedDB) doesn't change between the two, only the platform's storage durability guarantee, and consequently how urgently the UI should prompt users to export.
 
 ## Status

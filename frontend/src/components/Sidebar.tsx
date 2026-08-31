@@ -1,8 +1,17 @@
 // The sidebar/thread-list. Purely presentational: it's handed the threads
 // Home already fetched, plus callbacks for everything you can do from here
-// — open a thread, start a new one, and now rename/delete an existing one.
-// No storage calls of its own, same split every other screen component
-// uses — Home is the one that actually calls renameThread/deleteThread.
+// — open a thread, start a new one, rename/delete an existing one, and now
+// export. No storage calls of its own, same split every other screen
+// component uses — Home is the one that actually calls
+// renameThread/deleteThread/exportBytes.
+//
+// Export used to live behind the Settings menu; moved here (right next to
+// "+") since exporting shouldn't be hidden behind a menu — it's the
+// user's only durable copy of their data (see CLAUDE.md -> "Data storage
+// & privacy"), so it stays one tap away regardless of which screen you're
+// on. It tracks its own pending/error state locally (like SessionChoice's
+// `importing`) rather than lifting that up to Home, since nothing outside
+// this button cares about it.
 
 import { useRef, useState } from "react";
 import type { Thread } from "../storage";
@@ -15,6 +24,7 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onRenameThread: (threadId: number, title: string) => void;
   onDeleteThread: (threadId: number) => void;
+  onExport: () => Promise<void>;
 }
 
 // How long a touch has to be held before the "⋯" button reveals itself on
@@ -47,6 +57,7 @@ export function Sidebar({
   onOpenSettings,
   onRenameThread,
   onDeleteThread,
+  onExport,
 }: SidebarProps) {
   // Which thread's "⋯" action menu (Rename / Delete) is currently open —
   // at most one at a time, so an id rather than a per-thread boolean.
@@ -62,6 +73,29 @@ export function Sidebar({
   const [renameValue, setRenameValue] = useState("");
   // The thread pending a delete confirmation, if any.
   const [deletingThread, setDeletingThread] = useState<Thread | null>(null);
+  // Export's own pending/error state — local here rather than lifted to
+  // Home, same reasoning as SessionChoice's `importing`: nothing outside
+  // this button cares whether an export is mid-flight, only that it
+  // either finished (the browser's own download UI takes over from
+  // there) or failed (shown right here).
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  async function handleExportClick() {
+    setExportError(null);
+    setExporting(true);
+    try {
+      await onExport();
+    } catch (err) {
+      setExportError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong exporting your chats.",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
 
   // Long-press bookkeeping. `timer` is the pending setTimeout (so a touch
   // ending early can cancel it); `fired` records whether that timeout
@@ -131,14 +165,27 @@ export function Sidebar({
             <br />
             start a new chat
           </p>
-          <button
-            type="button"
-            className="sidebar-new-button sidebar-new-button--empty"
-            onClick={onNewThread}
-            aria-label="New chat"
-          >
-            +
-          </button>
+          <div className="sidebar-empty-actions">
+            <button
+              type="button"
+              className="sidebar-new-button sidebar-new-button--empty"
+              onClick={onNewThread}
+              aria-label="New chat"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="sidebar-export-button sidebar-export-button--empty"
+              onClick={handleExportClick}
+              disabled={exporting}
+              aria-label="Export chats"
+              title="Export chats"
+            >
+              ⬇
+            </button>
+          </div>
+          {exportError && <p className="sidebar-export-error">{exportError}</p>}
         </div>
       ) : (
         <>
@@ -209,12 +256,23 @@ export function Sidebar({
           </ul>
           <button
             type="button"
+            className="sidebar-export-button sidebar-export-button--floating"
+            onClick={handleExportClick}
+            disabled={exporting}
+            aria-label="Export chats"
+            title="Export chats"
+          >
+            ⬇
+          </button>
+          <button
+            type="button"
             className="sidebar-new-button sidebar-new-button--floating"
             onClick={onNewThread}
             aria-label="New chat"
           >
             +
           </button>
+          {exportError && <p className="sidebar-export-error">{exportError}</p>}
         </>
       )}
 

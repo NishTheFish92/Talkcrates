@@ -16,6 +16,14 @@ export async function init(): Promise<void> {
   await initDb();
 }
 
+// exportBytes/importBytes are already named to match the public interface
+// (see CLAUDE.md -> "Storage-layer interface"), so they're re-exported
+// directly rather than wrapped like init()/initDb() above — that wrapper
+// only exists because init() and initDb() are different names. getDb()
+// stays unexported here on purpose: it's reached directly from queries.ts,
+// not something UI code should ever call.
+export { exportBytes, importBytes } from "./db";
+
 export * from "./types";
 export * from "./errors";
 export * from "./queries";

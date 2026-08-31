@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@types/sql.js": "^1.4.11",
+    "@zip.js/zip.js": "^2.8.61",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "sql.js": "^1.14.2"
