@@ -272,7 +272,7 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
       >
         {thread.messages.length === 0 ? (
           <div className="chat-empty">
-            No messages yet — say something as {me.role}.
+            No messages yet. Say something as {me.role}.
           </div>
         ) : (
           thread.messages.map((message) => {
