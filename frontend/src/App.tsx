@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { getConfig, importBytes, init, updateConfig } from "./storage";
 import type { Config } from "./storage";
 import { parseBackupZip } from "./backup/zip";
+import { Onboarding } from "./components/Onboarding";
 import { SessionChoice } from "./components/SessionChoice";
 import { NameCapture } from "./components/NameCapture";
 import { Home } from "./components/Home";
@@ -18,14 +19,23 @@ import "./App.css";
 // this way the render code below can only ever be in exactly one of these
 // five states, never e.g. "loading" and "error" at once.
 //
-// "selecting" and "needsName" are both pre-Home, first-run-only states
-// (config.name starts as "" until one of them sets it) — "selecting" is
-// the wireframe's "New Session / Import Existing Session" screen, shown
-// first; picking "New Session" moves to "needsName" (the real, already-
-// working name-capture screen). Picking "Import Existing Session" skips
-// straight to "ready" — see SessionChoice.tsx's comment for why.
+// "onboarding", "selecting" and "needsName" are all pre-Home, first-run-only
+// states (config.name starts as "" until one of them sets it) — "onboarding"
+// is the wireframe's swipeable intro carousel (screen 1), shown first;
+// "Skip" or reaching its last slide moves to "selecting", the wireframe's
+// "New Session / Import Existing Session" screen (screen 2). Picking "New
+// Session" there moves to "needsName" (the real, already-working
+// name-capture screen). Picking "Import Existing Session" skips straight to
+// "ready" — see SessionChoice.tsx's comment for why.
+//
+// Unlike config.name, "has onboarding been shown" isn't persisted anywhere
+// (no such field exists in config.json — see CLAUDE.md's "Config file").
+// That's deliberate for now, not an oversight: it means onboarding re-shows
+// on every reload until a name is actually saved, same as "selecting"
+// already did before this screen existed.
 type Status =
   | { kind: "loading" }
+  | { kind: "onboarding" }
   | { kind: "selecting" }
   | { kind: "needsName" }
   | { kind: "ready"; name: string }
@@ -65,7 +75,7 @@ function App() {
           setStatus(
             config.name
               ? { kind: "ready", name: config.name }
-              : { kind: "selecting" },
+              : { kind: "onboarding" },
           );
         }
       } catch (err) {
@@ -109,6 +119,12 @@ function App() {
       // The next successful write (or reload from the saved config) will
       // catch up.
     }
+  }
+
+  // Onboarding's "Skip", or "Get Started" on its last slide — both just
+  // mean "move on to SessionChoice" (see Onboarding.tsx's onDone comment).
+  function handleOnboardingDone() {
+    setStatus({ kind: "selecting" });
   }
 
   // SessionChoice's "New Session" — moves on to the real name-capture
@@ -209,6 +225,9 @@ function App() {
         {status.message}
       </div>
     );
+  }
+  if (status.kind === "onboarding") {
+    return <Onboarding onDone={handleOnboardingDone} />;
   }
   if (status.kind === "selecting") {
     return (
