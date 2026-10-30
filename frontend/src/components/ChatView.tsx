@@ -10,6 +10,7 @@
 // is computed live, client-side").
 
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -178,6 +179,42 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
     });
   }, [pov]);
 
+  const handleSwapPov = useCallback(() => {
+    // First: measure every bubble's current position before anything
+    // changes. Stashed in a ref (not state) since this doesn't need to
+    // trigger a render itself — the pov state update below already will.
+    const rects = new Map<number, DOMRect>();
+    bubbleRefs.current.forEach((el, messageId) => {
+      rects.set(messageId, el.getBoundingClientRect());
+    });
+    pendingRects.current = rects;
+    setJustSentId(null);
+    setPov((currentPov) => (currentPov === 0 ? 1 : 0));
+  }, []);
+
+  useEffect(() => {
+    if (status.kind !== "ready") return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        event.altKey &&
+        !event.shiftKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        // Use the physical key so macOS Option layouts that produce
+        // a different character still trigger the shortcut.
+        event.code === "KeyQ" &&
+        !event.repeat
+      ) {
+        event.preventDefault();
+        handleSwapPov();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [status.kind, handleSwapPov]);
+
   if (status.kind === "loading") {
     return <div className="status-message">Loading…</div>;
   }
@@ -230,19 +267,6 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
     });
   }
 
-  function handleSwapPov() {
-    // First: measure every bubble's current position before anything
-    // changes. Stashed in a ref (not state) since this doesn't need to
-    // trigger a render itself — the pov state update below already will.
-    const rects = new Map<number, DOMRect>();
-    bubbleRefs.current.forEach((el, messageId) => {
-      rects.set(messageId, el.getBoundingClientRect());
-    });
-    pendingRects.current = rects;
-    setJustSentId(null);
-    setPov(pov === 0 ? 1 : 0);
-  }
-
   return (
     <div className="chat-view">
       <div className="chat-header">
@@ -255,14 +279,20 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
           ←
         </button>
         <span className="chat-header-title">{other.role}</span>
-        <button
-          type="button"
-          className="chat-swap"
-          onClick={handleSwapPov}
-          aria-label="Switch point of view"
-        >
-          ⇄
-        </button>
+        <span className="chat-swap-tooltip-wrap">
+          <button
+            type="button"
+            className="chat-swap"
+            onClick={handleSwapPov}
+            aria-label="Switch point of view (Option/Alt+Q)"
+            aria-describedby="chat-swap-tooltip"
+          >
+            ⇄
+          </button>
+          <span id="chat-swap-tooltip" className="chat-swap-tooltip" role="tooltip">
+            Alt | ⌥ + Q
+          </span>
+        </span>
       </div>
 
       <div

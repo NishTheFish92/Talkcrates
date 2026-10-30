@@ -1068,6 +1068,37 @@ button:active:not(:disabled) {
   cursor: pointer;
 }
 
+.chat-swap-tooltip-wrap {
+  position: relative;
+  flex: none;
+}
+
+.chat-swap-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 10;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.chat-swap-tooltip-wrap:hover .chat-swap-tooltip,
+.chat-swap-tooltip-wrap:focus-within .chat-swap-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
 .chat-swap {
   color: var(--color-accent);
 }
