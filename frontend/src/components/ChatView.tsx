@@ -15,6 +15,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type PointerEvent,
   type UIEvent,
 } from "react";
 import { addMessage, getThread } from "../storage";
@@ -37,6 +38,12 @@ type LoadStatus =
   | { kind: "loading" }
   | { kind: "ready"; thread: ThreadDetail }
   | { kind: "error"; message: string };
+
+interface SwipeStart {
+  pointerId: number;
+  x: number;
+  y: number;
+}
 
 export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
   const [status, setStatus] = useState<LoadStatus>({ kind: "loading" });
@@ -65,6 +72,7 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
   // effect that does "Invert, Play".
   const bubbleRefs = useRef(new Map<number, HTMLDivElement>());
   const pendingRects = useRef<Map<number, DOMRect> | null>(null);
+  const swipeStart = useRef<SwipeStart | null>(null);
 
   // .chat-messages itself (not an individual bubble) — used below to jump
   // it to its own bottom, the same way any real chat app opens on the
@@ -255,6 +263,46 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
     setScrolledUp(distanceFromBottom > 40);
   }
 
+  function handleMessagesPointerDown(e: PointerEvent<HTMLDivElement>) {
+    if (e.pointerType !== "touch") return;
+    if (!e.isPrimary) {
+      swipeStart.current = null;
+      return;
+    }
+
+    // Leave the screen edges to the browser's back/forward navigation.
+    if (e.clientX <= 24 || e.clientX >= window.innerWidth - 24) {
+      swipeStart.current = null;
+      return;
+    }
+
+    swipeStart.current = {
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+    };
+  }
+
+  function handleMessagesPointerUp(e: PointerEvent<HTMLDivElement>) {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start || start.pointerId !== e.pointerId) return;
+
+    const deltaX = e.clientX - start.x;
+    const deltaY = e.clientY - start.y;
+    if (Math.abs(deltaX) < 64 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.5) {
+      return;
+    }
+
+    handleSwapPov();
+  }
+
+  function handleMessagesPointerCancel(e: PointerEvent<HTMLDivElement>) {
+    if (swipeStart.current?.pointerId === e.pointerId) {
+      swipeStart.current = null;
+    }
+  }
+
   function handleJumpToBottom() {
     const el = messagesRef.current;
     if (!el) return;
@@ -284,13 +332,13 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
             type="button"
             className="chat-swap"
             onClick={handleSwapPov}
-            aria-label="Switch point of view (Option/Alt+Q)"
+            aria-label="Switch point of view (swipe left or right, or Option/Alt+Q)"
             aria-describedby="chat-swap-tooltip"
           >
             ⇄
           </button>
           <span id="chat-swap-tooltip" className="chat-swap-tooltip" role="tooltip">
-            Alt | ⌥ + Q
+            Alt | ⌥ + Q · Swipe ← or →
           </span>
         </span>
       </div>
@@ -299,6 +347,9 @@ export function ChatView({ threadId, onBack, onMessageSent }: ChatViewProps) {
         className="chat-messages"
         ref={messagesRef}
         onScroll={handleMessagesScroll}
+        onPointerDown={handleMessagesPointerDown}
+        onPointerUp={handleMessagesPointerUp}
+        onPointerCancel={handleMessagesPointerCancel}
       >
         {thread.messages.length === 0 ? (
           <div className="chat-empty">
