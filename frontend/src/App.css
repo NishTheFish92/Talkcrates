@@ -1125,6 +1125,9 @@ button:active:not(:disabled) {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
+  /* Keep vertical scrolling and pinch zoom native; horizontal touch
+     movement is reserved for the POV-switch gesture. */
+  touch-action: pan-y pinch-zoom;
   padding: 18px 16px;
   display: flex;
   flex-direction: column;
